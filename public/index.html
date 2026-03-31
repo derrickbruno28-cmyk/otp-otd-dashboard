@@ -81,6 +81,9 @@
   .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
   .target-badge { background: var(--blue-bg); border: 1px solid var(--accent); border-radius: 6px; padding: 4px 10px; font-size: 11px; color: var(--accent); font-weight: 600; letter-spacing: 0.5px; }
   .theme-toggle { min-width: 118px; justify-content: center; }
+  .online-chip { background: var(--surface2); border: 1px solid var(--border2); border-radius: 999px; padding: 5px 10px; font-size: 11px; color: var(--text2); }
+  .user-chip { display: inline-flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 999px; padding: 4px 10px 4px 6px; font-size: 12px; color: var(--text2); }
+  .user-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border2); background: var(--surface); }
 
   /* NAV */
   .nav { background: var(--surface); border-bottom: 1px solid var(--border); display: flex; gap: 0; padding: 0 24px; overflow-x: auto; }
@@ -274,9 +277,31 @@
   body.light-mode .alert-banner { background: rgba(220,38,38,0.07); }
   body.light-mode ::-webkit-scrollbar-track { background: #edf3f9; }
   body.light-mode ::-webkit-scrollbar-thumb { background: #c1cfdf; }
+  .auth-screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(6,10,16,0.68); backdrop-filter: blur(12px); z-index: 500; }
+  .auth-card { width: min(520px, 100%); background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; box-shadow: var(--shadow); padding: 32px; }
+  .auth-kicker { font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; font-weight: 700; }
+  .auth-title { font-family: 'Bebas Neue', sans-serif; font-size: 42px; line-height: 0.95; letter-spacing: 1px; margin-bottom: 14px; }
+  .auth-copy { color: var(--text2); line-height: 1.6; margin-bottom: 20px; }
+  .auth-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .auth-note { margin-top: 14px; font-size: 12px; color: var(--text3); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; box-shadow: 0 0 0 6px var(--green-bg); margin-right: 8px; }
 </style>
 </head>
 <body>
+
+<div id="auth-screen" class="auth-screen hidden">
+  <div class="auth-card">
+    <div class="auth-kicker">Secure Access</div>
+    <div class="auth-title">GH Logistics dashboard access is restricted to work Google accounts.</div>
+    <div class="auth-copy">Sign in with your <strong>@ghlogisticsllc.com</strong> Google account to view shipment data, import sheet updates, and use the shared dashboard.</div>
+    <div id="auth-alert"></div>
+    <div class="auth-actions">
+      <a class="btn btn-primary" href="/auth/google">🔐 Sign in with Google</a>
+      <button class="btn btn-ghost" onclick="applyTheme(document.body.classList.contains('light-mode') ? 'dark' : 'light')">Toggle Theme</button>
+    </div>
+    <div class="auth-note">Only company Google accounts are allowed. Personal Gmail access is blocked.</div>
+  </div>
+</div>
 
 <div class="header">
   <div>
@@ -286,9 +311,16 @@
   <div class="target-badge">OTP Target ≥ 97%</div>
   <div class="target-badge">OTD Target ≥ 95%</div>
   <div class="header-right">
+    <span id="online-count" class="online-chip hidden"><span class="status-dot"></span>0 online</span>
+    <span id="user-chip" class="user-chip hidden">
+      <img id="user-avatar" class="user-avatar" alt="User avatar">
+      <span id="user-email"></span>
+    </span>
     <span id="record-count" style="color:var(--text3);font-size:12px;"></span>
     <button id="theme-toggle" class="btn btn-ghost btn-sm theme-toggle" onclick="toggleTheme()">☀ Light Mode</button>
+    <button id="logout-btn" class="btn btn-ghost btn-sm hidden" onclick="logout()">Sign Out</button>
     <button class="btn btn-primary btn-sm" onclick="showImportModal()">⬆ Import Excel</button>
+    <button id="undo-import-btn" class="btn btn-ghost btn-sm hidden" onclick="undoLastImport()">↩ Undo Last Import</button>
     <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Export</button>
     <button class="btn btn-danger btn-sm" onclick="clearAllData()">🗑 Clear All Data</button>
   </div>
@@ -723,11 +755,14 @@ let db = null;
 let allShipments = [];
 let editingId = null;
 let importBuffer = [];
-let sortField = 'ls_num';
+let sortField = 'month';
 let sortDir = 'desc';
 let currentPage = 1;
 const PAGE_SIZE = 50;
 const API_BASE = '/api';
+let currentUser = null;
+let presenceInterval = null;
+let lastImportBatch = null;
 
 const DRIVERS = ["Aerial Alexus King","Ahmed Abdulwahhab","Alexander Brenes","Amador Martinez","Amir","Anthony Gonzales","Baxter B Franco","Benjamin S Anderson","Brian Keith Laitinen","Bruce Woodrum","Carlos Ramirez","Claude T Whisenhunt","Damon Spencer","Daniel Jay Williams","Dario Portillo","Daryl Oronda Marshall","David Garza","Davonte T Galbert","Demariye Mathis Grant","Deon Nickens","Derek Brewer","Derek Ramirez","Derrick Jevon Scott","Desiree Torres","Devonte Cunningham","Donna Lorraine Langston","Erick Gonzales","Fausto Mandujano","Franco Santos","Gerardo Portillo","Gerzayn Miranda","Hector Nava","Ida Jones","Isaac Robles","Jacob Vasquez","Jamarrio Loggins","James Eckford","Javier, Jr Villanueva","Jay Harts","Jeanette Cruz","Jeffery Brown","Jennifer Ann Flores","Jermaine Thomas","Jessica Hudson","Johnny, Jr Eric Dominguez","Jose Angel Quinones Rivera","Jose Guajardo","Jose, Jr Enrique Morales","Joseph Barraza","Joseph Jezzard","Joshuwa M Mccain","Juan Jose Lopez","Justin Moody","Kevon Terrell","Kimala S Brown","Krystal Thrasher","Kyonna Harrison","Latoya Joycell Duffie","Leah May","Leo Avila","Leroy Van Iv Drury","Loriann Lozzi","Luis Alberto Trinidad","Luis Eraldo Fernandez Jr","Manuel Arredondo","Marcos Mata","Maurice La Quinn Williams","Michael Kruszynski","Miles Murphy","Monica Guerra","Nathaniel Fernandez","Oscar Flores Jr","Rafael Gama","Raul Cantu","Raul Jose Rubio","Ricardo Cortez","Richard Jack","Ricky Jenkins","Robert, Sr Spangler","Rocio Edith Grano","Rosendo Venegas","Rubin -> Manuel","Silvestre Alvarez","Stephen Craig Ward","Terence Sanford","Uri Ivan Montano","Marnessia Newberry","Derion Newberry","Steven Rosas","Joan Jose Morales","Thomas Sapp","Ernest Thalmann"];
 
@@ -737,9 +772,14 @@ const OTD_FAILS = ["Carrier Driver Late Departure","Mechanical Breakdown En Rout
 
 async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
+    credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options
   });
+  if (response.status === 401) {
+    showAuthState(null, null);
+    throw new Error('Authentication required');
+  }
   if (!response.ok) {
     let message = 'Request failed';
     try {
@@ -777,10 +817,10 @@ function dbDelete(id) {
   return apiFetch(`/shipments/${id}`, { method: 'DELETE' });
 }
 
-function dbBulkAdd(records) {
+function dbBulkAdd(records, options = {}) {
   return apiFetch('/shipments/bulk', {
     method: 'POST',
-    body: JSON.stringify({ records })
+    body: JSON.stringify({ records, ...options })
   });
 }
 
@@ -799,12 +839,138 @@ function toggleTheme() {
   applyTheme(isLight ? 'dark' : 'light');
 }
 
+function showAuthState(session, authError) {
+  const authScreen = document.getElementById('auth-screen');
+  const authAlert = document.getElementById('auth-alert');
+  const onlineChip = document.getElementById('online-count');
+  const userChip = document.getElementById('user-chip');
+  const logoutBtn = document.getElementById('logout-btn');
+
+  if (authError) {
+    authAlert.innerHTML = `<div class="alert alert-error">${authError}</div>`;
+  } else {
+    authAlert.innerHTML = '';
+  }
+
+  if (session && session.authenticated) {
+    authScreen.classList.add('hidden');
+    onlineChip.classList.remove('hidden');
+    userChip.classList.remove('hidden');
+    logoutBtn.classList.remove('hidden');
+    currentUser = session.user;
+    document.getElementById('user-email').textContent = session.user.email;
+    document.getElementById('user-avatar').src = session.user.photo || 'https://www.gravatar.com/avatar/?d=mp';
+    updateOnlineCount(session.onlineUsers);
+    return;
+  }
+
+  currentUser = null;
+  authScreen.classList.remove('hidden');
+  onlineChip.classList.add('hidden');
+  userChip.classList.add('hidden');
+  logoutBtn.classList.add('hidden');
+  document.getElementById('record-count').textContent = '';
+  if (presenceInterval) {
+    clearInterval(presenceInterval);
+    presenceInterval = null;
+  }
+}
+
+function updateOnlineCount(count) {
+  const onlineChip = document.getElementById('online-count');
+  onlineChip.innerHTML = `<span class="status-dot"></span>${count || 0} online`;
+}
+
+function parseMonthValue(month) {
+  if (!month) return Number.NEGATIVE_INFINITY;
+  const parsed = new Date(`1 ${month}`);
+  return Number.isNaN(parsed.getTime()) ? Number.NEGATIVE_INFINITY : parsed.getTime();
+}
+
+function compareShipmentValues(a, b, field, dir) {
+  const direction = dir === 'asc' ? 1 : -1;
+  const dateFields = new Set(['pu_appt', 'pu_actual', 'del1_appt', 'del1_actual', 'del2_appt', 'del2_actual']);
+  const numericFields = new Set(['id', 'lane_miles', 'week_num']);
+
+  let av = a[field];
+  let bv = b[field];
+
+  if (field === 'month') {
+    av = parseMonthValue(av);
+    bv = parseMonthValue(bv);
+  } else if (dateFields.has(field)) {
+    av = av ? new Date(av).getTime() : Number.NEGATIVE_INFINITY;
+    bv = bv ? new Date(bv).getTime() : Number.NEGATIVE_INFINITY;
+  } else if (numericFields.has(field)) {
+    av = av != null && av !== '' ? Number(av) : Number.NEGATIVE_INFINITY;
+    bv = bv != null && bv !== '' ? Number(bv) : Number.NEGATIVE_INFINITY;
+  } else {
+    av = String(av || '').toLowerCase();
+    bv = String(bv || '').toLowerCase();
+  }
+
+  if (av < bv) return -1 * direction;
+  if (av > bv) return 1 * direction;
+
+  const fallbackA = a.pu_appt ? new Date(a.pu_appt).getTime() : Number(a.id || 0);
+  const fallbackB = b.pu_appt ? new Date(b.pu_appt).getTime() : Number(b.id || 0);
+  if (fallbackA < fallbackB) return 1;
+  if (fallbackA > fallbackB) return -1;
+  return Number(b.id || 0) - Number(a.id || 0);
+}
+
+async function loadLastImportBatch() {
+  try {
+    const result = await apiFetch('/imports/last');
+    lastImportBatch = result.batch;
+  } catch (_) {
+    lastImportBatch = null;
+  }
+  const undoBtn = document.getElementById('undo-import-btn');
+  undoBtn.classList.toggle('hidden', !lastImportBatch);
+}
+
+async function loadSession() {
+  const response = await fetch(`${API_BASE}/session`, { credentials: 'same-origin' });
+  const session = await response.json();
+  const authError = new URLSearchParams(window.location.search).get('authError');
+  if (authError) {
+    history.replaceState({}, '', window.location.pathname);
+  }
+  showAuthState(session, authError === 'google-login-failed' ? 'Google sign-in failed or the account is not allowed.' : null);
+  return session;
+}
+
+function startPresenceUpdates() {
+  if (presenceInterval) clearInterval(presenceInterval);
+  presenceInterval = setInterval(async () => {
+    try {
+      const result = await apiFetch('/presence', { method: 'POST' });
+      updateOnlineCount(result.onlineUsers);
+    } catch (_) {
+      clearInterval(presenceInterval);
+      presenceInterval = null;
+    }
+  }, 20000);
+}
+
+async function logout() {
+  await fetch('/auth/logout', {
+    method: 'POST',
+    credentials: 'same-origin'
+  });
+  showAuthState(null, null);
+}
+
 // ═══════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════
 
 async function init() {
   applyTheme(localStorage.getItem('otp-otd-theme') || 'dark');
+  const session = await loadSession();
+  if (!session.authenticated) return;
+  startPresenceUpdates();
   db = await openDB();
   allShipments = await dbGetAll();
 
@@ -816,6 +982,7 @@ async function init() {
 
   populateFilters();
   populateFormSelects();
+  await loadLastImportBatch();
   renderDashboard();
   document.getElementById('record-count').textContent = `${allShipments.length} records`;
 }
@@ -892,8 +1059,7 @@ function runTypeBadge(rt) {
 function getUniqueMonths() {
   const months = [...new Set(allShipments.map(s => s.month).filter(Boolean))];
   return months.sort((a, b) => {
-    const da = new Date('1 ' + a); const db = new Date('1 ' + b);
-    return da - db;
+    return parseMonthValue(b) - parseMonthValue(a);
   });
 }
 
@@ -1197,10 +1363,7 @@ function renderShipments() {
   filteredShipments = filterShipments({ search, month, otp, otd, runtype });
 
   filteredShipments.sort((a, b) => {
-    let av = a[sortField], bv = b[sortField];
-    if (av == null) av = ''; if (bv == null) bv = '';
-    if (sortDir === 'asc') return av < bv ? -1 : av > bv ? 1 : 0;
-    return av > bv ? -1 : av < bv ? 1 : 0;
+    return compareShipmentValues(a, b, sortField, sortDir);
   });
 
   renderShipmentPage();
@@ -1224,7 +1387,7 @@ function renderShipmentPage() {
   }
 
   tbody.innerHTML = filteredShipments.map(s => {
-    if (s.id === activeEditId) return buildEditRow(s);
+    if (String(s.id) === String(activeEditId)) return buildEditRow(s);
     return `
       <tr id="row-${s.id}">
         <td><button class="edit-trigger" onclick="openInlineEdit(${s.id})" title="Edit this row">✏</button></td>
@@ -1311,7 +1474,7 @@ function buildEditRow(s) {
 }
 
 function openInlineEdit(id) {
-  activeEditId = id;
+  activeEditId = String(id);
   renderShipmentPage();
   // Scroll the row into view
   const row = document.getElementById('row-' + id);
@@ -1397,7 +1560,10 @@ function changePage(dir) { /* no-op — no pagination */ }
 
 function sortTable(field) {
   if (sortField === field) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-  else { sortField = field; sortDir = 'asc'; }
+  else {
+    sortField = field;
+    sortDir = ['month', 'pu_appt', 'pu_actual', 'del1_appt', 'del1_actual', 'del2_appt', 'del2_actual', 'id', 'week_num', 'lane_miles'].includes(field) ? 'desc' : 'asc';
+  }
   renderShipments();
 }
 
@@ -2166,15 +2332,17 @@ async function confirmImport() {
   }
 
   progressText.textContent = `Saving ${toInsert.length} records...`;
-  await dbBulkAdd(toInsert);
+  const importResult = await dbBulkAdd(toInsert, { trackImportBatch: true });
 
   progressBar.style.width = '100%';
   allShipments = await dbGetAll();
+  lastImportBatch = importResult.batchId ? { id: importResult.batchId, row_count: toInsert.length } : null;
   document.getElementById('record-count').textContent = `${allShipments.length} records`;
   populateFilters();
+  await loadLastImportBatch();
 
   document.getElementById('import-alert').innerHTML = `<div class="alert alert-success">
-    ✅ Import complete! Added ${toInsert.length} records · Skipped ${dupeCount} duplicates · ${skipped} empty rows ignored
+    ✅ Import complete! Added ${toInsert.length} records · Skipped ${dupeCount} duplicates · ${skipped} empty rows ignored${importResult.batchId ? ` · Batch #${importResult.batchId} ready to undo` : ''}
   </div>`;
   document.getElementById('import-progress').classList.add('hidden');
   document.getElementById('import-confirm-btn').classList.add('hidden');
@@ -2197,6 +2365,26 @@ function exportData() {
   XLSX.writeFile(wb, `OTP_OTD_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
+async function undoLastImport() {
+  if (!lastImportBatch) {
+    alert('There is no recent import batch available to undo.');
+    return;
+  }
+  const batchId = lastImportBatch.id;
+  const confirmed = confirm(`Undo import batch #${lastImportBatch.id}? This will remove new rows and restore any rows that import changed.`);
+  if (!confirmed) return;
+
+  await apiFetch(`/imports/${batchId}/rollback`, { method: 'POST' });
+  allShipments = await dbGetAll();
+  document.getElementById('record-count').textContent = `${allShipments.length} records`;
+  activeEditId = null;
+  populateFilters();
+  renderDashboard();
+  renderShipments();
+  await loadLastImportBatch();
+  alert(`Import batch #${batchId} was rolled back.`);
+}
+
 // ═══════════════════════════════════════════════════════════════
 // CLEAR ALL DATA
 // ═══════════════════════════════════════════════════════════════
@@ -2210,9 +2398,11 @@ async function clearAllData() {
   await apiFetch('/shipments', { method: 'DELETE' });
 
   allShipments = [];
+  lastImportBatch = null;
   activeEditId = null;
   document.getElementById('record-count').textContent = '0 records';
   populateFilters();
+  await loadLastImportBatch();
   renderDashboard();
   showTab('dashboard');
 }

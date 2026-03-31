@@ -1,6 +1,7 @@
 create table if not exists shipments (
   id bigserial primary key,
   source_key text unique,
+  import_batch_id bigint,
   ls_num text,
   load_id text,
   trip_num text,
@@ -32,3 +33,23 @@ create table if not exists shipments (
 create index if not exists shipments_month_idx on shipments (month);
 create index if not exists shipments_week_num_idx on shipments (week_num);
 create index if not exists shipments_ls_num_idx on shipments (ls_num);
+create index if not exists shipments_import_batch_idx on shipments (import_batch_id);
+
+create table if not exists import_batches (
+  id bigserial primary key,
+  created_at timestamptz not null default now(),
+  row_count integer not null default 0,
+  rolled_back_at timestamptz
+);
+
+create table if not exists import_batch_items (
+  id bigserial primary key,
+  batch_id bigint not null references import_batches(id) on delete cascade,
+  shipment_id bigint,
+  action text not null,
+  previous_data jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table shipments add column if not exists import_batch_id bigint;
+create index if not exists import_batch_items_batch_idx on import_batch_items (batch_id);

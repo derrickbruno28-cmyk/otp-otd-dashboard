@@ -2,7 +2,10 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
+const session = require('express-session');
 const cron = require('node-cron');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const { Pool } = require('pg');
 const XLSX = require('xlsx');
 require('dotenv').config();
@@ -16,12 +19,79 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is required');
 }
 
+if (!process.env.SESSION_SECRET) {
+  throw new Error('SESSION_SECRET is required');
+}
+
+if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_CALLBACK_URL) {
+  throw new Error('GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_CALLBACK_URL are required');
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL) ? false : { rejectUnauthorized: false }
 });
 
+const allowedEmailDomain = (process.env.ALLOWED_EMAIL_DOMAIN || 'ghlogisticsllc.com').toLowerCase();
+const isProduction = process.env.NODE_ENV === 'production';
+const presenceWindowMs = 60000;
+const onlineUsers = new Map();
+
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((user, done) => done(null, user));
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: process.env.GOOGLE_CALLBACK_URL
+}, (_accessToken, _refreshToken, profile, done) => {
+  const email = profile.emails && profile.emails[0] ? String(profile.emails[0].value).toLowerCase() : null;
+  if (!email || !email.endsWith(`@${allowedEmailDomain}`)) {
+    return done(new Error(`Only ${allowedEmailDomain} Google accounts can access this dashboard.`));
+  }
+  return done(null, {
+    id: profile.id,
+    displayName: profile.displayName,
+    email,
+    photo: profile.photos && profile.photos[0] ? profile.photos[0].value : null
+  });
+}));
+
+function cleanupOnlineUsers() {
+  const cutoff = Date.now() - presenceWindowMs;
+  for (const [sessionId, lastSeen] of onlineUsers.entries()) {
+    if (lastSeen < cutoff) onlineUsers.delete(sessionId);
+  }
+}
+
+function touchPresence(req) {
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    onlineUsers.set(req.sessionID, Date.now());
+    cleanupOnlineUsers();
+  }
+}
+
+function ensureAuthenticated(req, res, next) {
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    touchPresence(req);
+    return next();
+  }
+  return res.status(401).json({ error: 'Authentication required' });
+}
+
 app.use(cors());
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProduction,
+    maxAge: 1000 * 60 * 60 * 12
+  }
+}));
+app.use(passport.initialize());
+app.use(passport.session());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(publicDir));
 
@@ -110,6 +180,15 @@ function getMonth(dateStr) {
 function buildSourceKey(record) {
   if (!record.ls_num && !record.load_id) return null;
   return `${record.ls_num || ''}|${record.load_id || ''}`;
+}
+
+function normalizeDbRow(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    id: row.id != null ? Number(row.id) : row.id,
+    import_batch_id: row.import_batch_id != null ? Number(row.import_batch_id) : null
+  };
 }
 
 function sanitizeRecord(input) {
@@ -344,10 +423,24 @@ async function ensureSchema() {
 
 async function queryShipments() {
   const result = await pool.query('select * from shipments order by id asc');
-  return result.rows;
+  return result.rows.map(normalizeDbRow);
 }
 
-async function upsertShipment(client, input) {
+async function findExistingShipment(client, input) {
+  const record = sanitizeRecord(input);
+  if (record.id) {
+    const byId = await client.query('select * from shipments where id = $1', [record.id]);
+    return normalizeDbRow(byId.rows[0]);
+  }
+  if (record.source_key) {
+    const bySourceKey = await client.query('select * from shipments where source_key = $1', [record.source_key]);
+    return normalizeDbRow(bySourceKey.rows[0]);
+  }
+  return null;
+}
+
+async function upsertShipment(client, input, options = {}) {
+  const importBatchId = options.importBatchId || null;
   const record = sanitizeRecord(input);
   const values = [
     record.source_key,
@@ -374,7 +467,8 @@ async function upsertShipment(client, input) {
     record.otd_notes,
     record.week_num,
     record.month,
-    record.load_ref
+    record.load_ref,
+    importBatchId
   ];
 
   if (record.id) {
@@ -385,21 +479,21 @@ async function upsertShipment(client, input) {
            primary_driver = $7, secondary_driver = $8, run_type = $9, load_type = $10, pu_appt = $11,
            pu_actual = $12, otp_status = $13, otp_fail_reason = $14, otp_notes = $15, del1_appt = $16,
            del1_actual = $17, del2_appt = $18, del2_actual = $19, otd_status = $20, otd_fail_reason = $21,
-           otd_notes = $22, week_num = $23, month = $24, load_ref = $25, updated_at = now()
-       where id = $26
+           otd_notes = $22, week_num = $23, month = $24, load_ref = $25, import_batch_id = $26, updated_at = now()
+       where id = $27
        returning *`,
       updateValues
     );
-    return result.rows[0];
+    return normalizeDbRow(result.rows[0]);
   }
 
   const result = await client.query(
     `insert into shipments (
       source_key, ls_num, load_id, trip_num, lane_miles, truck_num, primary_driver, secondary_driver,
       run_type, load_type, pu_appt, pu_actual, otp_status, otp_fail_reason, otp_notes, del1_appt,
-      del1_actual, del2_appt, del2_actual, otd_status, otd_fail_reason, otd_notes, week_num, month, load_ref
+      del1_actual, del2_appt, del2_actual, otd_status, otd_fail_reason, otd_notes, week_num, month, load_ref, import_batch_id
     ) values (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
     )
     on conflict (source_key) do update set
       ls_num = excluded.ls_num,
@@ -426,11 +520,68 @@ async function upsertShipment(client, input) {
       week_num = excluded.week_num,
       month = excluded.month,
       load_ref = excluded.load_ref,
+      import_batch_id = excluded.import_batch_id,
       updated_at = now()
     returning *`,
     values
   );
-  return result.rows[0];
+  return normalizeDbRow(result.rows[0]);
+}
+
+async function createImportBatch(client) {
+  const result = await client.query('insert into import_batches default values returning id');
+  return Number(result.rows[0].id);
+}
+
+async function recordImportBatchItem(client, { batchId, shipmentId, action, previousData }) {
+  await client.query(
+    'insert into import_batch_items (batch_id, shipment_id, action, previous_data) values ($1, $2, $3, $4::jsonb)',
+    [batchId, shipmentId || null, action, previousData ? JSON.stringify(previousData) : null]
+  );
+}
+
+async function getLastImportBatch() {
+  const result = await pool.query(
+    `select id, created_at, row_count
+     from import_batches
+     where rolled_back_at is null
+     order by id desc
+     limit 1`
+  );
+  const row = result.rows[0];
+  return row ? { id: Number(row.id), created_at: row.created_at, row_count: row.row_count } : null;
+}
+
+async function rollbackImportBatch(batchId) {
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const batchRes = await client.query('select * from import_batches where id = $1 and rolled_back_at is null', [batchId]);
+    if (!batchRes.rows[0]) throw new Error('Import batch not found or already rolled back');
+
+    const itemsRes = await client.query(
+      'select * from import_batch_items where batch_id = $1 order by id desc',
+      [batchId]
+    );
+
+    for (const item of itemsRes.rows) {
+      if (item.action === 'inserted' && item.shipment_id) {
+        await client.query('delete from shipments where id = $1', [item.shipment_id]);
+      } else if (item.action === 'updated' && item.previous_data) {
+        const previousData = typeof item.previous_data === 'string' ? JSON.parse(item.previous_data) : item.previous_data;
+        await upsertShipment(client, previousData, { importBatchId: previousData.import_batch_id || null });
+      }
+    }
+
+    await client.query('update import_batches set rolled_back_at = now() where id = $1', [batchId]);
+    await client.query('commit');
+    return { rolledBack: itemsRes.rows.length };
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function syncSheet() {
@@ -472,7 +623,57 @@ app.get('/api/health', async (_req, res, next) => {
   }
 });
 
-app.get('/api/shipments', async (_req, res, next) => {
+app.get('/auth/google', passport.authenticate('google', {
+  scope: ['profile', 'email'],
+  hd: allowedEmailDomain,
+  prompt: 'select_account'
+}));
+
+app.get('/auth/google/callback', passport.authenticate('google', {
+  failureRedirect: '/?authError=google-login-failed',
+  session: true
+}), (req, res) => {
+  touchPresence(req);
+  res.redirect('/');
+});
+
+app.post('/auth/logout', (req, res, next) => {
+  onlineUsers.delete(req.sessionID);
+  req.logout((error) => {
+    if (error) return next(error);
+    req.session.destroy((sessionError) => {
+      if (sessionError) return next(sessionError);
+      res.status(204).end();
+    });
+  });
+});
+
+app.get('/api/session', (req, res) => {
+  if (!req.isAuthenticated || !req.isAuthenticated()) {
+    return res.json({ authenticated: false, onlineUsers: onlineUsers.size });
+  }
+  touchPresence(req);
+  return res.json({
+    authenticated: true,
+    user: req.user,
+    onlineUsers: onlineUsers.size
+  });
+});
+
+app.post('/api/presence', ensureAuthenticated, (req, res) => {
+  touchPresence(req);
+  res.json({ onlineUsers: onlineUsers.size });
+});
+
+app.get('/api/imports/last', ensureAuthenticated, async (_req, res, next) => {
+  try {
+    res.json({ batch: await getLastImportBatch() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/shipments', ensureAuthenticated, async (_req, res, next) => {
   try {
     res.json(await queryShipments());
   } catch (error) {
@@ -480,7 +681,7 @@ app.get('/api/shipments', async (_req, res, next) => {
   }
 });
 
-app.post('/api/shipments', async (req, res, next) => {
+app.post('/api/shipments', ensureAuthenticated, async (req, res, next) => {
   const client = await pool.connect();
   try {
     const record = await upsertShipment(client, req.body);
@@ -492,7 +693,7 @@ app.post('/api/shipments', async (req, res, next) => {
   }
 });
 
-app.put('/api/shipments/:id', async (req, res, next) => {
+app.put('/api/shipments/:id', ensureAuthenticated, async (req, res, next) => {
   const client = await pool.connect();
   try {
     const record = await upsertShipment(client, { ...req.body, id: Number(req.params.id) });
@@ -504,7 +705,7 @@ app.put('/api/shipments/:id', async (req, res, next) => {
   }
 });
 
-app.delete('/api/shipments/:id', async (req, res, next) => {
+app.delete('/api/shipments/:id', ensureAuthenticated, async (req, res, next) => {
   try {
     await pool.query('delete from shipments where id = $1', [Number(req.params.id)]);
     res.status(204).end();
@@ -513,18 +714,32 @@ app.delete('/api/shipments/:id', async (req, res, next) => {
   }
 });
 
-app.post('/api/shipments/bulk', async (req, res, next) => {
+app.post('/api/shipments/bulk', ensureAuthenticated, async (req, res, next) => {
   const records = Array.isArray(req.body.records) ? req.body.records : [];
+  const trackImportBatch = Boolean(req.body.trackImportBatch);
   const client = await pool.connect();
   try {
     await client.query('begin');
+    const batchId = trackImportBatch && records.length ? await createImportBatch(client) : null;
     let count = 0;
     for (const record of records) {
-      await upsertShipment(client, record);
+      const existing = batchId ? await findExistingShipment(client, record) : null;
+      const saved = await upsertShipment(client, record, { importBatchId: batchId });
+      if (batchId) {
+        await recordImportBatchItem(client, {
+          batchId,
+          shipmentId: saved.id,
+          action: existing ? 'updated' : 'inserted',
+          previousData: existing
+        });
+      }
       count += 1;
     }
+    if (batchId) {
+      await client.query('update import_batches set row_count = $2 where id = $1', [batchId, count]);
+    }
     await client.query('commit');
-    res.status(201).json({ insertedOrUpdated: count });
+    res.status(201).json({ insertedOrUpdated: count, batchId });
   } catch (error) {
     await client.query('rollback');
     next(error);
@@ -533,16 +748,24 @@ app.post('/api/shipments/bulk', async (req, res, next) => {
   }
 });
 
-app.delete('/api/shipments', async (_req, res, next) => {
+app.delete('/api/shipments', ensureAuthenticated, async (_req, res, next) => {
   try {
-    await pool.query('truncate table shipments restart identity');
+    await pool.query('truncate table import_batch_items, import_batches, shipments restart identity cascade');
     res.status(204).end();
   } catch (error) {
     next(error);
   }
 });
 
-app.post('/api/sync-sheet', async (_req, res, next) => {
+app.post('/api/imports/:id/rollback', ensureAuthenticated, async (req, res, next) => {
+  try {
+    res.json(await rollbackImportBatch(Number(req.params.id)));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/sync-sheet', ensureAuthenticated, async (_req, res, next) => {
   try {
     res.json(await syncSheet());
   } catch (error) {
@@ -561,6 +784,8 @@ app.use((error, _req, res, _next) => {
 
 async function start() {
   await ensureSchema();
+  cleanupOnlineUsers();
+  setInterval(cleanupOnlineUsers, 30000).unref();
   app.listen(port, () => {
     console.log(`OTP/OTD dashboard listening on http://localhost:${port}`);
   });
