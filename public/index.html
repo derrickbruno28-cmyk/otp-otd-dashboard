@@ -27,36 +27,12 @@
     --yellow-bg: rgba(245,158,11,0.1);
     --blue-bg: rgba(59,130,246,0.1);
     --shadow: 0 4px 24px rgba(0,0,0,0.4);
-    --bg-accent: radial-gradient(circle at top right, rgba(59,130,246,0.12), transparent 32%);
-  }
-
-  body.light-mode {
-    --bg: #eef3f8;
-    --surface: #fbfdff;
-    --surface2: #f2f6fb;
-    --border: #d8e1ee;
-    --border2: #c5d2e3;
-    --text: #18212f;
-    --text2: #526177;
-    --text3: #738196;
-    --accent: #2563eb;
-    --accent2: #1d4ed8;
-    --green: #15803d;
-    --green-bg: rgba(21,128,61,0.1);
-    --red: #dc2626;
-    --red-bg: rgba(220,38,38,0.09);
-    --yellow: #b45309;
-    --yellow-bg: rgba(180,83,9,0.11);
-    --blue-bg: rgba(37,99,235,0.1);
-    --shadow: 0 18px 42px rgba(104, 129, 167, 0.16);
-    --bg-accent: radial-gradient(circle at top right, rgba(37,99,235,0.08), transparent 34%);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     background: var(--bg);
-    background-image: var(--bg-accent);
     color: var(--text);
     font-family: 'DM Sans', sans-serif;
     font-size: 14px;
@@ -80,10 +56,6 @@
   .subtitle { color: var(--text3); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
   .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
   .target-badge { background: var(--blue-bg); border: 1px solid var(--accent); border-radius: 6px; padding: 4px 10px; font-size: 11px; color: var(--accent); font-weight: 600; letter-spacing: 0.5px; }
-  .theme-toggle { min-width: 118px; justify-content: center; }
-  .online-chip { background: var(--surface2); border: 1px solid var(--border2); border-radius: 999px; padding: 5px 10px; font-size: 11px; color: var(--text2); }
-  .user-chip { display: inline-flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 999px; padding: 4px 10px 4px 6px; font-size: 12px; color: var(--text2); }
-  .user-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border2); background: var(--surface); }
 
   /* NAV */
   .nav { background: var(--surface); border-bottom: 1px solid var(--border); display: flex; gap: 0; padding: 0 24px; overflow-x: auto; }
@@ -270,38 +242,9 @@
   .row-delete-btn:hover { background: rgba(239,68,68,0.2); }
   .edit-trigger { background: transparent; border: none; color: var(--text3); cursor: pointer; font-size: 13px; padding: 3px 7px; border-radius: 4px; transition: all 0.15s; }
   .edit-trigger:hover { background: var(--surface2); color: var(--accent); }
-  body.light-mode .badge-grey { background: rgba(115,129,150,0.12); color: #4a5a70; }
-  body.light-mode .target-badge { background: rgba(37,99,235,0.08); }
-  body.light-mode .btn-ghost:hover { background: #e9f0f8; }
-  body.light-mode .drop-zone:hover, body.light-mode .drop-zone.drag-over { background: rgba(37,99,235,0.08); }
-  body.light-mode .alert-banner { background: rgba(220,38,38,0.07); }
-  body.light-mode ::-webkit-scrollbar-track { background: #edf3f9; }
-  body.light-mode ::-webkit-scrollbar-thumb { background: #c1cfdf; }
-  .auth-screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(6,10,16,0.68); backdrop-filter: blur(12px); z-index: 500; }
-  .auth-card { width: min(520px, 100%); background: var(--surface); border: 1px solid var(--border2); border-radius: 20px; box-shadow: var(--shadow); padding: 32px; }
-  .auth-kicker { font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; font-weight: 700; }
-  .auth-title { font-family: 'Bebas Neue', sans-serif; font-size: 42px; line-height: 0.95; letter-spacing: 1px; margin-bottom: 14px; }
-  .auth-copy { color: var(--text2); line-height: 1.6; margin-bottom: 20px; }
-  .auth-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .auth-note { margin-top: 14px; font-size: 12px; color: var(--text3); }
-  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; box-shadow: 0 0 0 6px var(--green-bg); margin-right: 8px; }
 </style>
 </head>
 <body>
-
-<div id="auth-screen" class="auth-screen hidden">
-  <div class="auth-card">
-    <div class="auth-kicker">Secure Access</div>
-    <div class="auth-title">GH Logistics dashboard access is restricted to work Google accounts.</div>
-    <div class="auth-copy">Sign in with your <strong>@ghlogisticsllc.com</strong> Google account to view shipment data, import sheet updates, and use the shared dashboard.</div>
-    <div id="auth-alert"></div>
-    <div class="auth-actions">
-      <a class="btn btn-primary" href="/auth/google">🔐 Sign in with Google</a>
-      <button class="btn btn-ghost" onclick="applyTheme(document.body.classList.contains('light-mode') ? 'dark' : 'light')">Toggle Theme</button>
-    </div>
-    <div class="auth-note">Only company Google accounts are allowed. Personal Gmail access is blocked.</div>
-  </div>
-</div>
 
 <div class="header">
   <div>
@@ -311,14 +254,7 @@
   <div class="target-badge">OTP Target ≥ 97%</div>
   <div class="target-badge">OTD Target ≥ 95%</div>
   <div class="header-right">
-    <span id="online-count" class="online-chip hidden"><span class="status-dot"></span>0 online</span>
-    <span id="user-chip" class="user-chip hidden">
-      <img id="user-avatar" class="user-avatar" alt="User avatar">
-      <span id="user-email"></span>
-    </span>
     <span id="record-count" style="color:var(--text3);font-size:12px;"></span>
-    <button id="theme-toggle" class="btn btn-ghost btn-sm theme-toggle" onclick="toggleTheme()">☀ Light Mode</button>
-    <button id="logout-btn" class="btn btn-ghost btn-sm hidden" onclick="logout()">Sign Out</button>
     <button class="btn btn-primary btn-sm" onclick="showImportModal()">⬆ Import Excel</button>
     <button id="undo-import-btn" class="btn btn-ghost btn-sm hidden" onclick="undoLastImport()">↩ Undo Last Import</button>
     <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Export</button>
@@ -748,8 +684,14 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════
-// DATA LAYER — API-backed storage for shared Postgres persistence
+// DATA LAYER — IndexedDB for persistent local storage
 // ═══════════════════════════════════════════════════════════════
+
+const DB_NAME = 'OTP_OTD_Dashboard';
+const DB_VERSION = 3;
+const STORE = 'shipments';
+const META_STORE = 'metadata';
+const LAST_IMPORT_META_KEY = 'last_import_batch';
 
 let db = null;
 let allShipments = [];
@@ -759,9 +701,6 @@ let sortField = 'month';
 let sortDir = 'desc';
 let currentPage = 1;
 const PAGE_SIZE = 50;
-const API_BASE = '/api';
-let currentUser = null;
-let presenceInterval = null;
 let lastImportBatch = null;
 
 const DRIVERS = ["Aerial Alexus King","Ahmed Abdulwahhab","Alexander Brenes","Amador Martinez","Amir","Anthony Gonzales","Baxter B Franco","Benjamin S Anderson","Brian Keith Laitinen","Bruce Woodrum","Carlos Ramirez","Claude T Whisenhunt","Damon Spencer","Daniel Jay Williams","Dario Portillo","Daryl Oronda Marshall","David Garza","Davonte T Galbert","Demariye Mathis Grant","Deon Nickens","Derek Brewer","Derek Ramirez","Derrick Jevon Scott","Desiree Torres","Devonte Cunningham","Donna Lorraine Langston","Erick Gonzales","Fausto Mandujano","Franco Santos","Gerardo Portillo","Gerzayn Miranda","Hector Nava","Ida Jones","Isaac Robles","Jacob Vasquez","Jamarrio Loggins","James Eckford","Javier, Jr Villanueva","Jay Harts","Jeanette Cruz","Jeffery Brown","Jennifer Ann Flores","Jermaine Thomas","Jessica Hudson","Johnny, Jr Eric Dominguez","Jose Angel Quinones Rivera","Jose Guajardo","Jose, Jr Enrique Morales","Joseph Barraza","Joseph Jezzard","Joshuwa M Mccain","Juan Jose Lopez","Justin Moody","Kevon Terrell","Kimala S Brown","Krystal Thrasher","Kyonna Harrison","Latoya Joycell Duffie","Leah May","Leo Avila","Leroy Van Iv Drury","Loriann Lozzi","Luis Alberto Trinidad","Luis Eraldo Fernandez Jr","Manuel Arredondo","Marcos Mata","Maurice La Quinn Williams","Michael Kruszynski","Miles Murphy","Monica Guerra","Nathaniel Fernandez","Oscar Flores Jr","Rafael Gama","Raul Cantu","Raul Jose Rubio","Ricardo Cortez","Richard Jack","Ricky Jenkins","Robert, Sr Spangler","Rocio Edith Grano","Rosendo Venegas","Rubin -> Manuel","Silvestre Alvarez","Stephen Craig Ward","Terence Sanford","Uri Ivan Montano","Marnessia Newberry","Derion Newberry","Steven Rosas","Joan Jose Morales","Thomas Sapp","Ernest Thalmann"];
@@ -770,115 +709,101 @@ const OTP_FAILS = ["Carrier Driver Late / No Show","Carrier Equipment Not Availa
 
 const OTD_FAILS = ["Carrier Driver Late Departure","Mechanical Breakdown En Route","Hours of Service (HOS) Violation","Traffic / Accident Delay","Weather / Road Conditions","Incorrect Delivery Address","Consignee Refused / Not Available","Consignee Dock Congestion","Appointment Not Honored by Consignee","Mis-Route / Wrong Destination","Customs / Border Delay","Late Pickup Cascaded to Delivery","Not Enough Transit Time","Team Made Multiple Stops","Carrier Driver Late Departure","Other – See Notes","APPROVED: Weather / Natural Disaster (Act of God)","APPROVED: Government / Customs Hold","APPROVED: Consignee-Requested Reschedule","APPROVED: Carrier-Approved Force Majeure","APPROVED: Other – See Notes"];
 
-async function apiFetch(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options
-  });
-  if (response.status === 401) {
-    showAuthState(null, null);
-    throw new Error('Authentication required');
-  }
-  if (!response.ok) {
-    let message = 'Request failed';
-    try {
-      const data = await response.json();
-      message = data.error || message;
-    } catch (_) {}
-    throw new Error(message);
-  }
-  if (response.status === 204) return null;
-  return response.json();
-}
-
 function openDB() {
-  return Promise.resolve({ connected: true });
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(STORE)) {
+        const s = d.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+        s.createIndex('ls_num', 'ls_num', { unique: false });
+        s.createIndex('month', 'month', { unique: false });
+        s.createIndex('week_num', 'week_num', { unique: false });
+      }
+      if (!d.objectStoreNames.contains(META_STORE)) {
+        d.createObjectStore(META_STORE, { keyPath: 'key' });
+      }
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = (e) => reject(e.target.error);
+  });
 }
 
 function dbGetAll() {
-  return apiFetch('/shipments');
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 }
 
 function dbPut(record) {
-  if (record.id) {
-    return apiFetch(`/shipments/${record.id}`, {
-      method: 'PUT',
-      body: JSON.stringify(record)
-    });
-  }
-  return apiFetch('/shipments', {
-    method: 'POST',
-    body: JSON.stringify(record)
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const req = tx.objectStore(STORE).put(record);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
   });
 }
 
 function dbDelete(id) {
-  return apiFetch(`/shipments/${id}`, { method: 'DELETE' });
-}
-
-function dbBulkAdd(records, options = {}) {
-  return apiFetch('/shipments/bulk', {
-    method: 'POST',
-    body: JSON.stringify({ records, ...options })
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const req = tx.objectStore(STORE).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
   });
 }
 
-function applyTheme(theme) {
-  const isLight = theme === 'light';
-  document.body.classList.toggle('light-mode', isLight);
-  localStorage.setItem('otp-otd-theme', isLight ? 'light' : 'dark');
-  const themeBtn = document.getElementById('theme-toggle');
-  if (themeBtn) {
-    themeBtn.textContent = isLight ? '🌙 Dark Mode' : '☀ Light Mode';
-  }
+function dbBulkAdd(records) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    const insertedIds = [];
+    let index = 0;
+
+    function next() {
+      if (index >= records.length) return;
+      const req = store.put(records[index++]);
+      req.onsuccess = () => {
+        insertedIds.push(req.result);
+        next();
+      };
+      req.onerror = () => reject(req.error);
+    }
+
+    tx.oncomplete = () => resolve(insertedIds);
+    tx.onerror = () => reject(tx.error);
+    next();
+  });
 }
 
-function toggleTheme() {
-  const isLight = document.body.classList.contains('light-mode');
-  applyTheme(isLight ? 'dark' : 'light');
+function dbGetMeta(key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(META_STORE, 'readonly');
+    const req = tx.objectStore(META_STORE).get(key);
+    req.onsuccess = () => resolve(req.result ? req.result.value : null);
+    req.onerror = () => reject(req.error);
+  });
 }
 
-function showAuthState(session, authError) {
-  const authScreen = document.getElementById('auth-screen');
-  const authAlert = document.getElementById('auth-alert');
-  const onlineChip = document.getElementById('online-count');
-  const userChip = document.getElementById('user-chip');
-  const logoutBtn = document.getElementById('logout-btn');
-
-  if (authError) {
-    authAlert.innerHTML = `<div class="alert alert-error">${authError}</div>`;
-  } else {
-    authAlert.innerHTML = '';
-  }
-
-  if (session && session.authenticated) {
-    authScreen.classList.add('hidden');
-    onlineChip.classList.remove('hidden');
-    userChip.classList.remove('hidden');
-    logoutBtn.classList.remove('hidden');
-    currentUser = session.user;
-    document.getElementById('user-email').textContent = session.user.email;
-    document.getElementById('user-avatar').src = session.user.photo || 'https://www.gravatar.com/avatar/?d=mp';
-    updateOnlineCount(session.onlineUsers);
-    return;
-  }
-
-  currentUser = null;
-  authScreen.classList.remove('hidden');
-  onlineChip.classList.add('hidden');
-  userChip.classList.add('hidden');
-  logoutBtn.classList.add('hidden');
-  document.getElementById('record-count').textContent = '';
-  if (presenceInterval) {
-    clearInterval(presenceInterval);
-    presenceInterval = null;
-  }
+function dbSetMeta(key, value) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(META_STORE, 'readwrite');
+    const req = tx.objectStore(META_STORE).put({ key, value });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
 }
 
-function updateOnlineCount(count) {
-  const onlineChip = document.getElementById('online-count');
-  onlineChip.innerHTML = `<span class="status-dot"></span>${count || 0} online`;
+function dbDeleteMeta(key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(META_STORE, 'readwrite');
+    const req = tx.objectStore(META_STORE).delete(key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
 }
 
 function parseMonthValue(month) {
@@ -920,46 +845,9 @@ function compareShipmentValues(a, b, field, dir) {
 }
 
 async function loadLastImportBatch() {
-  try {
-    const result = await apiFetch('/imports/last');
-    lastImportBatch = result.batch;
-  } catch (_) {
-    lastImportBatch = null;
-  }
+  lastImportBatch = await dbGetMeta(LAST_IMPORT_META_KEY);
   const undoBtn = document.getElementById('undo-import-btn');
   undoBtn.classList.toggle('hidden', !lastImportBatch);
-}
-
-async function loadSession() {
-  const response = await fetch(`${API_BASE}/session`, { credentials: 'same-origin' });
-  const session = await response.json();
-  const authError = new URLSearchParams(window.location.search).get('authError');
-  if (authError) {
-    history.replaceState({}, '', window.location.pathname);
-  }
-  showAuthState(session, authError === 'google-login-failed' ? 'Google sign-in failed or the account is not allowed.' : null);
-  return session;
-}
-
-function startPresenceUpdates() {
-  if (presenceInterval) clearInterval(presenceInterval);
-  presenceInterval = setInterval(async () => {
-    try {
-      const result = await apiFetch('/presence', { method: 'POST' });
-      updateOnlineCount(result.onlineUsers);
-    } catch (_) {
-      clearInterval(presenceInterval);
-      presenceInterval = null;
-    }
-  }, 20000);
-}
-
-async function logout() {
-  await fetch('/auth/logout', {
-    method: 'POST',
-    credentials: 'same-origin'
-  });
-  showAuthState(null, null);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -967,10 +855,6 @@ async function logout() {
 // ═══════════════════════════════════════════════════════════════
 
 async function init() {
-  applyTheme(localStorage.getItem('otp-otd-theme') || 'dark');
-  const session = await loadSession();
-  if (!session.authenticated) return;
-  startPresenceUpdates();
   db = await openDB();
   allShipments = await dbGetAll();
 
@@ -2332,17 +2216,26 @@ async function confirmImport() {
   }
 
   progressText.textContent = `Saving ${toInsert.length} records...`;
-  const importResult = await dbBulkAdd(toInsert, { trackImportBatch: true });
+  const insertedIds = await dbBulkAdd(toInsert);
 
   progressBar.style.width = '100%';
   allShipments = await dbGetAll();
-  lastImportBatch = importResult.batchId ? { id: importResult.batchId, row_count: toInsert.length } : null;
+  lastImportBatch = insertedIds.length ? {
+    insertedIds,
+    rowCount: insertedIds.length,
+    createdAt: new Date().toISOString()
+  } : null;
   document.getElementById('record-count').textContent = `${allShipments.length} records`;
   populateFilters();
+  if (lastImportBatch) {
+    await dbSetMeta(LAST_IMPORT_META_KEY, lastImportBatch);
+  } else {
+    await dbDeleteMeta(LAST_IMPORT_META_KEY);
+  }
   await loadLastImportBatch();
 
   document.getElementById('import-alert').innerHTML = `<div class="alert alert-success">
-    ✅ Import complete! Added ${toInsert.length} records · Skipped ${dupeCount} duplicates · ${skipped} empty rows ignored${importResult.batchId ? ` · Batch #${importResult.batchId} ready to undo` : ''}
+    ✅ Import complete! Added ${toInsert.length} records · Skipped ${dupeCount} duplicates · ${skipped} empty rows ignored${insertedIds.length ? ' · Last import can be undone' : ''}
   </div>`;
   document.getElementById('import-progress').classList.add('hidden');
   document.getElementById('import-confirm-btn').classList.add('hidden');
@@ -2370,19 +2263,24 @@ async function undoLastImport() {
     alert('There is no recent import batch available to undo.');
     return;
   }
-  const batchId = lastImportBatch.id;
-  const confirmed = confirm(`Undo import batch #${lastImportBatch.id}? This will remove new rows and restore any rows that import changed.`);
+  const rowCount = lastImportBatch.rowCount || (lastImportBatch.insertedIds ? lastImportBatch.insertedIds.length : 0);
+  const confirmed = confirm(`Undo the last import of ${rowCount} row${rowCount === 1 ? '' : 's'}? This will remove the records added by that import.`);
   if (!confirmed) return;
 
-  await apiFetch(`/imports/${batchId}/rollback`, { method: 'POST' });
+  const ids = Array.isArray(lastImportBatch.insertedIds) ? lastImportBatch.insertedIds : [];
+  for (const id of ids) {
+    await dbDelete(id);
+  }
+  await dbDeleteMeta(LAST_IMPORT_META_KEY);
   allShipments = await dbGetAll();
+  lastImportBatch = null;
   document.getElementById('record-count').textContent = `${allShipments.length} records`;
   activeEditId = null;
   populateFilters();
   renderDashboard();
   renderShipments();
   await loadLastImportBatch();
-  alert(`Import batch #${batchId} was rolled back.`);
+  alert('Last import was undone.');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2395,7 +2293,13 @@ async function clearAllData() {
   const doubleConfirm = confirm('Last chance — delete all data and start fresh?');
   if (!doubleConfirm) return;
 
-  await apiFetch('/shipments', { method: 'DELETE' });
+  const tx = db.transaction([STORE, META_STORE], 'readwrite');
+  tx.objectStore(STORE).clear();
+  tx.objectStore(META_STORE).delete(LAST_IMPORT_META_KEY);
+  await new Promise((resolve, reject) => {
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
 
   allShipments = [];
   lastImportBatch = null;
