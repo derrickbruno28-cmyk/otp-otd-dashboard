@@ -212,6 +212,8 @@
 
   .pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .pill { background: var(--surface2); border: 1px solid var(--border2); border-radius: 20px; padding: 3px 10px; font-size: 11px; color: var(--text2); }
+  button.pill { cursor: pointer; font-family: inherit; }
+  button.pill:hover { border-color: var(--accent); color: var(--text); }
 
   .alert-banner { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--red); }
 
@@ -924,6 +926,21 @@ function fmtPct(n, d) {
 function pctNum(n, d) {
   if (!d || d === 0) return null;
   return (n / d) * 100;
+}
+
+function getWeekNum(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d)) return null;
+  const start = new Date(d.getFullYear(), 0, 1);
+  return Math.ceil(((d - start) / 86400000 + start.getDay() + 1) / 7);
+}
+
+function getMonth(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d)) return null;
+  return d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 }
 
 function statusBadge(status) {
@@ -1819,6 +1836,7 @@ function renderMonthly() {
 // ═══════════════════════════════════════════════════════════════
 
 let parsedImportData = [];
+let importFieldSelection = {};
 
 function showImportModal() { document.getElementById('import-modal').classList.remove('hidden'); }
 function hideImportModal() {
@@ -1828,6 +1846,7 @@ function hideImportModal() {
   document.getElementById('import-alert').innerHTML = '';
   document.getElementById('file-input').value = '';
   parsedImportData = [];
+  importFieldSelection = {};
 }
 
 function handleDragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('drag-over'); }
@@ -1869,6 +1888,86 @@ const COL_ALIASES = {
   week_num: ['week #', 'week#', 'week', 'week_num', 'week number'],
   month: ['month', 'month year', 'period']
 };
+
+const LOADS_EXPORT_FIELDS = [
+  { key: 'ls_num', label: 'LS #', source: 'Load' },
+  { key: 'load_id', label: 'Load ID', source: 'Ref/Conf' },
+  { key: 'trip_num', label: 'Trip #', source: 'Pickup.1' },
+  { key: 'lane_miles', label: 'Lane Miles', source: 'Miles/Units' },
+  { key: 'truck_num', label: 'Truck #', source: 'Truck1' },
+  { key: 'primary_driver', label: 'Primary Driver', source: 'PrimaryDriver1' },
+  { key: 'secondary_driver', label: 'Secondary Driver', source: 'SecondaryDriver1' },
+  { key: 'run_type', label: 'Run Type', source: 'Auto-derived' },
+  { key: 'load_type', label: 'Load Type', source: 'Default' },
+  { key: 'pu_appt', label: 'PU Appt', source: 'Pickup' },
+  { key: 'del1_appt', label: 'Del 1 Appt', source: 'Delivery' },
+  { key: 'otp_fail_reason', label: 'OTP Fail Reason', source: 'Late Reason' },
+  { key: 'otp_notes', label: 'OTP Notes', source: 'Load Notes' },
+  { key: 'otd_fail_reason', label: 'OTD Fail Reason', source: 'Late Reason' },
+  { key: 'week_num', label: 'Week #', source: 'Auto-derived' },
+  { key: 'month', label: 'Month', source: 'Auto-derived' }
+];
+
+function isImportFieldSelected(field) {
+  return importFieldSelection[field] !== false;
+}
+
+function toggleImportField(field) {
+  importFieldSelection[field] = !isImportFieldSelected(field);
+  renderColumnMapping();
+}
+
+function initializeImportFieldSelection(format) {
+  const keys = format === 'loads_export'
+    ? LOADS_EXPORT_FIELDS.map(f => f.key)
+    : Object.keys(COL_ALIASES);
+  importFieldSelection = Object.fromEntries(keys.map(key => [key, true]));
+}
+
+function renderMappingPill({ key, label, found, suffix = '', auto = false }) {
+  const selected = isImportFieldSelected(key);
+  const color = !selected ? 'var(--text3)' : found ? 'var(--green)' : auto ? 'var(--accent)' : 'var(--yellow)';
+  const border = !selected ? 'var(--border2)' : found ? 'var(--green)' : auto ? 'var(--accent)' : 'var(--yellow)';
+  const icon = selected ? '✓' : '○';
+  return `<button type="button" class="pill" onclick="toggleImportField('${key}')" style="border-color:${border};color:${color};background:var(--surface2);">${icon} ${label}${suffix}</button>`;
+}
+
+function renderColumnMapping() {
+  if (!parsedImportData) return;
+  const { format, mapping } = parsedImportData;
+  const container = document.getElementById('column-mapping');
+
+  if (format === 'loads_export') {
+    container.innerHTML =
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Click any pill to include or exclude that field from this import.</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
+      LOADS_EXPORT_FIELDS.map(field => renderMappingPill({
+        key: field.key,
+        label: field.label,
+        found: !field.source.toLowerCase().includes('auto') && field.source !== 'Default',
+        auto: field.source.toLowerCase().includes('auto') || field.source === 'Default',
+        suffix: ` → ${field.source}`
+      })).join('') +
+      '</div>';
+    return;
+  }
+
+  container.innerHTML =
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Click any pill to include or exclude that field from this import.</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
+    Object.keys(COL_ALIASES).map((field) => {
+      const idx = mapping[field];
+      const found = idx !== undefined;
+      return renderMappingPill({
+        key: field,
+        label: field,
+        found,
+        auto: !found,
+        suffix: found ? ` → col ${idx + 1}` : ' → default/blank'
+      });
+    }).join('') +
+    '</div>';
+}
 
 function mapColumns(headers) {
   const mapping = {};
@@ -1929,22 +2028,6 @@ function parseLoadsExportRow(row, headers) {
     return raw.replace(/\s*\([^)]+\)\s*$/, '').trim() || null;
   }
 
-  // Calculate week number from a date
-  function getWeekNum(dateStr) {
-    if (!dateStr) return null;
-    const d = new Date(dateStr);
-    if (isNaN(d)) return null;
-    const start = new Date(d.getFullYear(), 0, 1);
-    return Math.ceil(((d - start) / 86400000 + start.getDay() + 1) / 7);
-  }
-
-  function getMonth(dateStr) {
-    if (!dateStr) return null;
-    const d = new Date(dateStr);
-    if (isNaN(d)) return null;
-    return d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-  }
-
   const lsNum = get('load');
   const loadId = get('ref/conf');
   const puAppt = parseApptDate(get('pickup'));
@@ -1964,29 +2047,29 @@ function parseLoadsExportRow(row, headers) {
   const truck = get('truck1');
 
   return {
-    ls_num: lsNum,
-    load_id: loadId,
-    trip_num: tripNum,
-    lane_miles: miles && parseFloat(miles) > 0 ? parseFloat(miles) : null,
-    truck_num: truck,
-    primary_driver: primaryDriver,
-    secondary_driver: secondaryDriver,
-    run_type: runType,
-    load_type: 'Live Load',
-    pu_appt: puAppt,
+    ls_num: isImportFieldSelected('ls_num') ? lsNum : null,
+    load_id: isImportFieldSelected('load_id') ? loadId : null,
+    trip_num: isImportFieldSelected('trip_num') ? tripNum : null,
+    lane_miles: isImportFieldSelected('lane_miles') && miles && parseFloat(miles) > 0 ? parseFloat(miles) : null,
+    truck_num: isImportFieldSelected('truck_num') ? truck : null,
+    primary_driver: isImportFieldSelected('primary_driver') ? primaryDriver : null,
+    secondary_driver: isImportFieldSelected('secondary_driver') ? secondaryDriver : null,
+    run_type: isImportFieldSelected('run_type') ? runType : null,
+    load_type: isImportFieldSelected('load_type') ? 'Live Load' : null,
+    pu_appt: isImportFieldSelected('pu_appt') ? puAppt : null,
     pu_actual: null,
     otp_status: 'Pending',
-    otp_fail_reason: lateReason || null,
-    otp_notes: loadNotes || null,
-    del1_appt: del1Appt,
+    otp_fail_reason: isImportFieldSelected('otp_fail_reason') ? (lateReason || null) : null,
+    otp_notes: isImportFieldSelected('otp_notes') ? (loadNotes || null) : null,
+    del1_appt: isImportFieldSelected('del1_appt') ? del1Appt : null,
     del1_actual: null,
     del2_appt: null,
     del2_actual: null,
     otd_status: 'Pending',
-    otd_fail_reason: lateReason || null,
+    otd_fail_reason: isImportFieldSelected('otd_fail_reason') ? (lateReason || null) : null,
     otd_notes: null,
-    week_num: getWeekNum(puAppt),
-    month: getMonth(puAppt),
+    week_num: isImportFieldSelected('week_num') ? getWeekNum(puAppt) : null,
+    month: isImportFieldSelected('month') ? getMonth(puAppt) : null,
     load_ref: `${lsNum} | ${loadId} | ${tripNum || ''}`
   };
 }
@@ -2043,6 +2126,7 @@ function processFile(file) {
       const format = detectFileFormat(headers);
       const mapping = format === 'standard' ? mapColumns(headers) : {};
       parsedImportData = { headers, rows, mapping, format };
+      initializeImportFieldSelection(format);
 
       const preview = document.getElementById('import-preview');
       preview.classList.remove('hidden');
@@ -2050,25 +2134,12 @@ function processFile(file) {
       if (format === 'loads_export') {
         document.getElementById('import-summary').textContent =
           `✅ Detected "Loads Export" format — ${rows.length} loads found · columns mapped automatically`;
-        document.getElementById('column-mapping').innerHTML =
-          '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
-          ['Load → LS#','Ref/Conf → Load ID','Pickup.1 → Trip #','Miles/Units → Lane Miles',
-           'Truck1 → Truck #','PrimaryDriver1 → Primary Driver','SecondaryDriver1 → Secondary Driver',
-           'Pickup → PU Appt','Delivery → Del 1 Appt','Late Reason → OTP/OTD Fail Reason',
-           'Load Notes → OTP Notes'].map(m =>
-            `<span class="pill" style="border-color:var(--green);color:var(--green);">✓ ${m}</span>`
-          ).join('') + '</div>';
       } else {
         const mappedCount = Object.keys(mapping).length;
         document.getElementById('import-summary').textContent =
           `Standard format — ${rows.length} data rows · ${mappedCount} columns mapped automatically`;
-        document.getElementById('column-mapping').innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
-          Object.entries(COL_ALIASES).map(([field]) => {
-            const idx = mapping[field];
-            const found = idx !== undefined;
-            return `<span class="pill" style="${found ? 'border-color:var(--green);color:var(--green);' : 'color:var(--text3);'}">${found ? '✓' : '○'} ${field}${found ? ' → col ' + (idx+1) : ''}</span>`;
-          }).join('') + '</div>';
       }
+      renderColumnMapping();
 
       document.getElementById('import-confirm-btn').classList.remove('hidden');
     } catch (err) {
@@ -2123,6 +2194,7 @@ async function confirmImport() {
       };
 
       const get = (field) => {
+        if (!isImportFieldSelected(field)) return null;
         const idx = mapping[field];
         return idx !== undefined ? (row[idx] != null ? String(row[idx]).trim() : null) : null;
       };
@@ -2159,7 +2231,7 @@ async function confirmImport() {
 
       const secDriver = get('secondary_driver');
       const rawRunType = get('run_type');
-      const runType = normalizeRunType(rawRunType) || (secDriver ? 'Team' : 'Solo');
+      const runType = isImportFieldSelected('run_type') ? (normalizeRunType(rawRunType) || (secDriver ? 'Team' : 'Solo')) : null;
       const lsNum = get('ls_num');
       const loadId = get('load_id');
       const tripNum = get('trip_num');
@@ -2194,8 +2266,8 @@ async function confirmImport() {
         otd_status: otdStatus || 'Pending',
         otd_fail_reason: get('otd_fail_reason'),
         otd_notes: get('otd_notes'),
-        week_num: get('week_num') ? parseInt(get('week_num')) : null,
-        month: get('month'),
+        week_num: isImportFieldSelected('week_num') ? (get('week_num') ? parseInt(get('week_num')) : (puAppt ? getWeekNum(puAppt) : null)) : null,
+        month: isImportFieldSelected('month') ? (get('month') || (puAppt ? getMonth(puAppt) : null)) : null,
         load_ref: `${lsNum} | ${loadId} | ${tripNum || ''}`
       };
     }
