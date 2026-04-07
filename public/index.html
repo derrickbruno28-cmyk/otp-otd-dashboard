@@ -30,6 +30,28 @@
     --bg-accent: radial-gradient(circle at top right, rgba(59,130,246,0.12), transparent 32%);
   }
 
+  body.light-mode {
+    --bg: #eef3f8;
+    --surface: #fbfdff;
+    --surface2: #f2f6fb;
+    --border: #d8e1ee;
+    --border2: #c5d2e3;
+    --text: #18212f;
+    --text2: #526177;
+    --text3: #738196;
+    --accent: #2563eb;
+    --accent2: #1d4ed8;
+    --green: #15803d;
+    --green-bg: rgba(21,128,61,0.1);
+    --red: #dc2626;
+    --red-bg: rgba(220,38,38,0.09);
+    --yellow: #b45309;
+    --yellow-bg: rgba(180,83,9,0.11);
+    --blue-bg: rgba(37,99,235,0.1);
+    --shadow: 0 18px 42px rgba(104,129,167,0.16);
+    --bg-accent: radial-gradient(circle at top right, rgba(37,99,235,0.08), transparent 34%);
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -58,6 +80,7 @@
   .subtitle { color: var(--text3); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
   .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
   .target-badge { background: var(--blue-bg); border: 1px solid var(--accent); border-radius: 6px; padding: 4px 10px; font-size: 11px; color: var(--accent); font-weight: 600; letter-spacing: 0.5px; }
+  .theme-toggle { min-width: 108px; justify-content: center; }
   /* NAV */
   .nav { background: var(--surface); border-bottom: 1px solid var(--border); display: flex; gap: 0; padding: 0 24px; overflow-x: auto; }
   .nav-btn { padding: 12px 18px; border: none; background: none; color: var(--text2); cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
@@ -245,6 +268,13 @@
   .row-delete-btn:hover { background: rgba(239,68,68,0.2); }
   .edit-trigger { background: transparent; border: none; color: var(--text3); cursor: pointer; font-size: 13px; padding: 3px 7px; border-radius: 4px; transition: all 0.15s; }
   .edit-trigger:hover { background: var(--surface2); color: var(--accent); }
+  body.light-mode .badge-grey { background: rgba(115,129,150,0.12); color: #4a5a70; }
+  body.light-mode .target-badge { background: rgba(37,99,235,0.08); }
+  body.light-mode .btn-ghost:hover { background: #e9f0f8; }
+  body.light-mode .drop-zone:hover, body.light-mode .drop-zone.drag-over { background: rgba(37,99,235,0.08); }
+  body.light-mode .alert-banner { background: rgba(220,38,38,0.07); }
+  body.light-mode ::-webkit-scrollbar-track { background: #edf3f9; }
+  body.light-mode ::-webkit-scrollbar-thumb { background: #c1cfdf; }
 </style>
 </head>
 <body>
@@ -258,6 +288,7 @@
   <div class="target-badge">OTD Target ≥ 95%</div>
   <div class="header-right">
     <span id="record-count" style="color:var(--text3);font-size:12px;"></span>
+    <button id="theme-toggle" class="btn btn-ghost btn-sm theme-toggle" onclick="toggleTheme()">Light Mode</button>
     <button class="btn btn-primary btn-sm" onclick="showImportModal()">⬆ Import Excel</button>
     <button id="undo-import-btn" class="btn btn-ghost btn-sm hidden" onclick="undoLastImport()">↩ Undo Last Import</button>
     <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Export</button>
@@ -705,6 +736,7 @@ let sortDir = 'desc';
 let currentPage = 1;
 const PAGE_SIZE = 50;
 let lastImportBatch = null;
+let currentTab = 'dashboard';
 
 const DRIVERS = ["Aerial Alexus King","Ahmed Abdulwahhab","Alexander Brenes","Amador Martinez","Amir","Anthony Gonzales","Baxter B Franco","Benjamin S Anderson","Brian Keith Laitinen","Bruce Woodrum","Carlos Ramirez","Claude T Whisenhunt","Damon Spencer","Daniel Jay Williams","Dario Portillo","Daryl Oronda Marshall","David Garza","Davonte T Galbert","Demariye Mathis Grant","Deon Nickens","Derek Brewer","Derek Ramirez","Derrick Jevon Scott","Desiree Torres","Devonte Cunningham","Donna Lorraine Langston","Erick Gonzales","Fausto Mandujano","Franco Santos","Gerardo Portillo","Gerzayn Miranda","Hector Nava","Ida Jones","Isaac Robles","Jacob Vasquez","Jamarrio Loggins","James Eckford","Javier, Jr Villanueva","Jay Harts","Jeanette Cruz","Jeffery Brown","Jennifer Ann Flores","Jermaine Thomas","Jessica Hudson","Johnny, Jr Eric Dominguez","Jose Angel Quinones Rivera","Jose Guajardo","Jose, Jr Enrique Morales","Joseph Barraza","Joseph Jezzard","Joshuwa M Mccain","Juan Jose Lopez","Justin Moody","Kevon Terrell","Kimala S Brown","Krystal Thrasher","Kyonna Harrison","Latoya Joycell Duffie","Leah May","Leo Avila","Leroy Van Iv Drury","Loriann Lozzi","Luis Alberto Trinidad","Luis Eraldo Fernandez Jr","Manuel Arredondo","Marcos Mata","Maurice La Quinn Williams","Michael Kruszynski","Miles Murphy","Monica Guerra","Nathaniel Fernandez","Oscar Flores Jr","Rafael Gama","Raul Cantu","Raul Jose Rubio","Ricardo Cortez","Richard Jack","Ricky Jenkins","Robert, Sr Spangler","Rocio Edith Grano","Rosendo Venegas","Rubin -> Manuel","Silvestre Alvarez","Stephen Craig Ward","Terence Sanford","Uri Ivan Montano","Marnessia Newberry","Derion Newberry","Steven Rosas","Joan Jose Morales","Thomas Sapp","Ernest Thalmann"];
 
@@ -736,7 +768,7 @@ function dbGetAll() {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readonly');
     const req = tx.objectStore(STORE).getAll();
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => resolve(req.result.map(normalizeShipmentRecord));
     req.onerror = () => reject(req.error);
   });
 }
@@ -744,7 +776,7 @@ function dbGetAll() {
 function dbPut(record) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
-    const req = tx.objectStore(STORE).put(record);
+    const req = tx.objectStore(STORE).put(normalizeShipmentRecord(record));
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
@@ -768,7 +800,7 @@ function dbBulkAdd(records) {
 
     function next() {
       if (index >= records.length) return;
-      const req = store.put(records[index++]);
+      const req = store.put(normalizeShipmentRecord(records[index++]));
       req.onsuccess = () => {
         insertedIds.push(req.result);
         next();
@@ -853,12 +885,26 @@ async function loadLastImportBatch() {
   undoBtn.classList.toggle('hidden', !lastImportBatch);
 }
 
+function applyTheme(theme) {
+  const isLight = theme === 'light';
+  document.body.classList.toggle('light-mode', isLight);
+  localStorage.setItem('otp-otd-theme', isLight ? 'light' : 'dark');
+  const themeBtn = document.getElementById('theme-toggle');
+  if (themeBtn) {
+    themeBtn.textContent = isLight ? 'Dark Mode' : 'Light Mode';
+  }
+}
+
+function toggleTheme() {
+  applyTheme(document.body.classList.contains('light-mode') ? 'dark' : 'light');
+}
+
 // ═══════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════
 
 async function init() {
-  localStorage.removeItem('otp-otd-theme');
+  applyTheme(localStorage.getItem('otp-otd-theme') || 'dark');
   db = await openDB();
   allShipments = await dbGetAll();
 
@@ -868,11 +914,9 @@ async function init() {
     allShipments = await dbGetAll();
   }
 
-  populateFilters();
   populateFormSelects();
   await loadLastImportBatch();
-  renderDashboard();
-  document.getElementById('record-count').textContent = `${allShipments.length} records`;
+  await reloadAllShipments();
 }
 
 async function seedInitialData() {
@@ -959,6 +1003,70 @@ function runTypeBadge(rt) {
   return `<span class="badge badge-grey">${rt}</span>`;
 }
 
+function normalizeStatus(status, fallback = 'Pending') {
+  const value = String(status || '').trim().toLowerCase();
+  if (!value) return fallback;
+  if (['✓', '✔', 'on time', 'ontime', 'yes', 'y', 'pass'].includes(value) || value === '\u2713') return '✓';
+  if (['✗', 'x', 'late', 'no', 'n', 'fail'].includes(value) || value === '\u2717') return '✗';
+  if (value === 'pending' || value === 'in progress') return 'Pending';
+  return status;
+}
+
+function normalizeShipmentRecord(record) {
+  if (!record) return record;
+  const secondaryDriver = String(record.secondary_driver || '').trim() || null;
+  const primaryDriver = String(record.primary_driver || '').trim() || null;
+  const puAppt = record.pu_appt || null;
+  const puActual = record.pu_actual || null;
+  const del1Appt = record.del1_appt || null;
+  const del1Actual = record.del1_actual || null;
+  const del2Appt = record.del2_appt || null;
+  const del2Actual = record.del2_actual || null;
+  const computedOtp = calcOTPStatus(puAppt, puActual);
+  const computedOtd = calcOTDStatus(del1Appt, del1Actual, del2Appt, del2Actual);
+  const runType = normalizeRunType(record.run_type) || (secondaryDriver ? 'Team' : (primaryDriver ? 'Solo' : null));
+  const tripNum = String(record.trip_num || '').trim() || null;
+  const lsNum = record.ls_num != null && record.ls_num !== '' ? String(record.ls_num).replace(/\.0$/, '') : null;
+  const loadId = record.load_id != null && record.load_id !== '' ? String(record.load_id).trim() : null;
+  const laneMiles = record.lane_miles != null && record.lane_miles !== '' && !Number.isNaN(Number(record.lane_miles))
+    ? Number(record.lane_miles)
+    : null;
+
+  return {
+    ...record,
+    ls_num: lsNum,
+    load_id: loadId,
+    trip_num: tripNum,
+    lane_miles: laneMiles,
+    primary_driver: primaryDriver,
+    secondary_driver: secondaryDriver,
+    run_type: runType,
+    otp_status: normalizeStatus(record.otp_status, computedOtp),
+    otd_status: normalizeStatus(record.otd_status, computedOtd),
+    week_num: record.week_num != null && record.week_num !== '' ? Number(record.week_num) : getWeekNum(puAppt),
+    month: record.month || getMonth(puAppt),
+    load_ref: `${lsNum || ''} | ${loadId || ''} | ${tripNum || ''}`
+  };
+}
+
+function refreshVisibleViews() {
+  populateFilters();
+  renderDashboard();
+  renderDrivers();
+  renderLanes();
+  renderWeekly();
+  renderMonthly();
+  if (currentTab === 'shipments') {
+    renderShipments();
+  }
+}
+
+async function reloadAllShipments() {
+  allShipments = await dbGetAll();
+  document.getElementById('record-count').textContent = `${allShipments.length} records`;
+  refreshVisibleViews();
+}
+
 function getUniqueMonths() {
   const months = [...new Set(allShipments.map(s => s.month).filter(Boolean))];
   return months.sort((a, b) => {
@@ -1024,6 +1132,7 @@ function filterShipments(filters = {}) {
 const TABS = ['dashboard','shipments','add','drivers','lanes','weekly','monthly'];
 
 function showTab(tab) {
+  currentTab = tab;
   TABS.forEach(t => {
     document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
   });
@@ -1440,23 +1549,17 @@ async function saveInlineEdit(id) {
   };
 
   await dbPut(record);
-  allShipments = await dbGetAll();
-  document.getElementById('record-count').textContent = `${allShipments.length} records`;
   activeEditId = null;
-  populateFilters();
+  await reloadAllShipments();
   renderShipments();
-  renderDashboard();
 }
 
 async function deleteInlineRow(id) {
   if (!confirm('Delete this shipment? This cannot be undone.')) return;
   await dbDelete(id);
-  allShipments = await dbGetAll();
-  document.getElementById('record-count').textContent = `${allShipments.length} records`;
   activeEditId = null;
-  populateFilters();
+  await reloadAllShipments();
   renderShipments();
-  renderDashboard();
 }
 
 function changePage(dir) { /* no-op — no pagination */ }
@@ -1541,9 +1644,7 @@ async function submitShipment(e) {
   if (editingId) record.id = editingId;
 
   await dbPut(record);
-  allShipments = await dbGetAll();
-  document.getElementById('record-count').textContent = `${allShipments.length} records`;
-  populateFilters();
+  await reloadAllShipments();
   resetForm();
   document.getElementById('add-alert').innerHTML = `<div class="alert alert-success">✅ Shipment ${editingId ? 'updated' : 'saved'} successfully!</div>`;
   setTimeout(() => document.getElementById('add-alert').innerHTML = '', 3000);
@@ -2365,19 +2466,17 @@ async function confirmImport() {
   const insertedIds = await dbBulkAdd(toInsert);
 
   progressBar.style.width = '100%';
-  allShipments = await dbGetAll();
   lastImportBatch = insertedIds.length ? {
     insertedIds,
     rowCount: insertedIds.length,
     createdAt: new Date().toISOString()
   } : null;
-  document.getElementById('record-count').textContent = `${allShipments.length} records`;
-  populateFilters();
   if (lastImportBatch) {
     await dbSetMeta(LAST_IMPORT_META_KEY, lastImportBatch);
   } else {
     await dbDeleteMeta(LAST_IMPORT_META_KEY);
   }
+  await reloadAllShipments();
   await loadLastImportBatch();
 
   document.getElementById('import-alert').innerHTML = `<div class="alert alert-success">
@@ -2386,7 +2485,6 @@ async function confirmImport() {
   document.getElementById('import-progress').classList.add('hidden');
   document.getElementById('import-confirm-btn').classList.add('hidden');
 
-  renderDashboard();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2418,12 +2516,9 @@ async function undoLastImport() {
     await dbDelete(id);
   }
   await dbDeleteMeta(LAST_IMPORT_META_KEY);
-  allShipments = await dbGetAll();
   lastImportBatch = null;
-  document.getElementById('record-count').textContent = `${allShipments.length} records`;
   activeEditId = null;
-  populateFilters();
-  renderDashboard();
+  await reloadAllShipments();
   renderShipments();
   await loadLastImportBatch();
   alert('Last import was undone.');
@@ -2451,9 +2546,8 @@ async function clearAllData() {
   lastImportBatch = null;
   activeEditId = null;
   document.getElementById('record-count').textContent = '0 records';
-  populateFilters();
+  refreshVisibleViews();
   await loadLastImportBatch();
-  renderDashboard();
   showTab('dashboard');
 }
 
