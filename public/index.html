@@ -718,16 +718,9 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════
-// DATA LAYER — IndexedDB for persistent local storage
+// DATA LAYER — shared server storage via API
 // ═══════════════════════════════════════════════════════════════
 
-const DB_NAME = 'OTP_OTD_Dashboard';
-const DB_VERSION = 3;
-const STORE = 'shipments';
-const META_STORE = 'metadata';
-const LAST_IMPORT_META_KEY = 'last_import_batch';
-
-let db = null;
 let allShipments = [];
 let editingId = null;
 let importBuffer = [];
@@ -737,6 +730,7 @@ let currentPage = 1;
 const PAGE_SIZE = 50;
 let lastImportBatch = null;
 let currentTab = 'dashboard';
+const LAST_IMPORT_META_KEY = 'last_import_batch';
 
 const DRIVERS = ["Aerial Alexus King","Ahmed Abdulwahhab","Alexander Brenes","Amador Martinez","Amir","Anthony Gonzales","Baxter B Franco","Benjamin S Anderson","Brian Keith Laitinen","Bruce Woodrum","Carlos Ramirez","Claude T Whisenhunt","Damon Spencer","Daniel Jay Williams","Dario Portillo","Daryl Oronda Marshall","David Garza","Davonte T Galbert","Demariye Mathis Grant","Deon Nickens","Derek Brewer","Derek Ramirez","Derrick Jevon Scott","Desiree Torres","Devonte Cunningham","Donna Lorraine Langston","Erick Gonzales","Fausto Mandujano","Franco Santos","Gerardo Portillo","Gerzayn Miranda","Hector Nava","Ida Jones","Isaac Robles","Jacob Vasquez","Jamarrio Loggins","James Eckford","Javier, Jr Villanueva","Jay Harts","Jeanette Cruz","Jeffery Brown","Jennifer Ann Flores","Jermaine Thomas","Jessica Hudson","Johnny, Jr Eric Dominguez","Jose Angel Quinones Rivera","Jose Guajardo","Jose, Jr Enrique Morales","Joseph Barraza","Joseph Jezzard","Joshuwa M Mccain","Juan Jose Lopez","Justin Moody","Kevon Terrell","Kimala S Brown","Krystal Thrasher","Kyonna Harrison","Latoya Joycell Duffie","Leah May","Leo Avila","Leroy Van Iv Drury","Loriann Lozzi","Luis Alberto Trinidad","Luis Eraldo Fernandez Jr","Manuel Arredondo","Marcos Mata","Maurice La Quinn Williams","Michael Kruszynski","Miles Murphy","Monica Guerra","Nathaniel Fernandez","Oscar Flores Jr","Rafael Gama","Raul Cantu","Raul Jose Rubio","Ricardo Cortez","Richard Jack","Ricky Jenkins","Robert, Sr Spangler","Rocio Edith Grano","Rosendo Venegas","Rubin -> Manuel","Silvestre Alvarez","Stephen Craig Ward","Terence Sanford","Uri Ivan Montano","Marnessia Newberry","Derion Newberry","Steven Rosas","Joan Jose Morales","Thomas Sapp","Ernest Thalmann"];
 
@@ -744,101 +738,61 @@ const OTP_FAILS = ["Carrier Driver Late / No Show","Carrier Equipment Not Availa
 
 const OTD_FAILS = ["Carrier Driver Late Departure","Mechanical Breakdown En Route","Hours of Service (HOS) Violation","Traffic / Accident Delay","Weather / Road Conditions","Incorrect Delivery Address","Consignee Refused / Not Available","Consignee Dock Congestion","Appointment Not Honored by Consignee","Mis-Route / Wrong Destination","Customs / Border Delay","Late Pickup Cascaded to Delivery","Not Enough Transit Time","Team Made Multiple Stops","Carrier Driver Late Departure","Other – See Notes","APPROVED: Weather / Natural Disaster (Act of God)","APPROVED: Government / Customs Hold","APPROVED: Consignee-Requested Reschedule","APPROVED: Carrier-Approved Force Majeure","APPROVED: Other – See Notes"];
 
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = (e) => {
-      const d = e.target.result;
-      if (!d.objectStoreNames.contains(STORE)) {
-        const s = d.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
-        s.createIndex('ls_num', 'ls_num', { unique: false });
-        s.createIndex('month', 'month', { unique: false });
-        s.createIndex('week_num', 'week_num', { unique: false });
-      }
-      if (!d.objectStoreNames.contains(META_STORE)) {
-        d.createObjectStore(META_STORE, { keyPath: 'key' });
-      }
-    };
-    req.onsuccess = (e) => resolve(e.target.result);
-    req.onerror = (e) => reject(e.target.error);
+async function apiRequest(url, options = {}) {
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    },
+    ...options
   });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Request failed: ${response.status}`);
+  }
+
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+function openDB() {
+  return Promise.resolve(true);
 }
 
 function dbGetAll() {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readonly');
-    const req = tx.objectStore(STORE).getAll();
-    req.onsuccess = () => resolve(req.result.map(normalizeShipmentRecord));
-    req.onerror = () => reject(req.error);
-  });
+  return apiRequest('/api/shipments').then(records => records.map(normalizeShipmentRecord));
 }
 
 function dbPut(record) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    const req = tx.objectStore(STORE).put(normalizeShipmentRecord(record));
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+  return apiRequest('/api/shipments', {
+    method: 'PUT',
+    body: JSON.stringify(normalizeShipmentRecord(record))
+  }).then(result => result.id);
 }
 
 function dbDelete(id) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    const req = tx.objectStore(STORE).delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  return apiRequest(`/api/shipments/${id}`, { method: 'DELETE' });
 }
 
 function dbBulkAdd(records) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    const store = tx.objectStore(STORE);
-    const insertedIds = [];
-    let index = 0;
-
-    function next() {
-      if (index >= records.length) return;
-      const req = store.put(normalizeShipmentRecord(records[index++]));
-      req.onsuccess = () => {
-        insertedIds.push(req.result);
-        next();
-      };
-      req.onerror = () => reject(req.error);
-    }
-
-    tx.oncomplete = () => resolve(insertedIds);
-    tx.onerror = () => reject(tx.error);
-    next();
+  return apiRequest('/api/shipments/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ records: records.map(normalizeShipmentRecord) })
   });
 }
 
 function dbGetMeta(key) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(META_STORE, 'readonly');
-    const req = tx.objectStore(META_STORE).get(key);
-    req.onsuccess = () => resolve(req.result ? req.result.value : null);
-    req.onerror = () => reject(req.error);
-  });
+  if (key !== 'last_import_batch') return Promise.resolve(null);
+  return apiRequest('/api/import-batches/latest');
 }
 
 function dbSetMeta(key, value) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(META_STORE, 'readwrite');
-    const req = tx.objectStore(META_STORE).put({ key, value });
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  return Promise.resolve(value);
 }
 
 function dbDeleteMeta(key) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(META_STORE, 'readwrite');
-    const req = tx.objectStore(META_STORE).delete(key);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  return Promise.resolve(key);
 }
 
 function parseMonthValue(month) {
@@ -905,7 +859,7 @@ function toggleTheme() {
 
 async function init() {
   applyTheme(localStorage.getItem('otp-otd-theme') || 'dark');
-  db = await openDB();
+  await openDB();
   allShipments = await dbGetAll();
 
   // Seed with initial data if empty
@@ -2463,19 +2417,11 @@ async function confirmImport() {
   }
 
   progressText.textContent = `Saving ${toInsert.length} records...`;
-  const insertedIds = await dbBulkAdd(toInsert);
+  const bulkResult = await dbBulkAdd(toInsert);
+  const insertedIds = bulkResult.insertedIds || [];
 
   progressBar.style.width = '100%';
-  lastImportBatch = insertedIds.length ? {
-    insertedIds,
-    rowCount: insertedIds.length,
-    createdAt: new Date().toISOString()
-  } : null;
-  if (lastImportBatch) {
-    await dbSetMeta(LAST_IMPORT_META_KEY, lastImportBatch);
-  } else {
-    await dbDeleteMeta(LAST_IMPORT_META_KEY);
-  }
+  lastImportBatch = bulkResult.batch || null;
   await reloadAllShipments();
   await loadLastImportBatch();
 
@@ -2511,11 +2457,7 @@ async function undoLastImport() {
   const confirmed = confirm(`Undo the last import of ${rowCount} row${rowCount === 1 ? '' : 's'}? This will remove the records added by that import.`);
   if (!confirmed) return;
 
-  const ids = Array.isArray(lastImportBatch.insertedIds) ? lastImportBatch.insertedIds : [];
-  for (const id of ids) {
-    await dbDelete(id);
-  }
-  await dbDeleteMeta(LAST_IMPORT_META_KEY);
+  await apiRequest(`/api/import-batches/${lastImportBatch.id}/undo`, { method: 'POST' });
   lastImportBatch = null;
   activeEditId = null;
   await reloadAllShipments();
@@ -2534,13 +2476,7 @@ async function clearAllData() {
   const doubleConfirm = confirm('Last chance — delete all data and start fresh?');
   if (!doubleConfirm) return;
 
-  const tx = db.transaction([STORE, META_STORE], 'readwrite');
-  tx.objectStore(STORE).clear();
-  tx.objectStore(META_STORE).delete(LAST_IMPORT_META_KEY);
-  await new Promise((resolve, reject) => {
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error);
-  });
+  await apiRequest('/api/shipments', { method: 'DELETE' });
 
   allShipments = [];
   lastImportBatch = null;
