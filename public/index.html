@@ -2099,8 +2099,16 @@ function parseLoadsExportRow(row, headers) {
   const puAppt = parseApptDate(get('pickup'));
   const del1Appt = parseApptDate(get('delivery'));
 
-  // Pickup.1 has trip numbers — header may show as 'pickup.1' or similar
-  const tripRaw = get('pickup.1') || get('trips') || get('trip') || null;
+  // Loads Export files usually store Trip # in Pickup.1, but some exports use PO# instead.
+  const tripRaw =
+    get('pickup.1') ||
+    get('trips') ||
+    get('trip') ||
+    get('po#') ||
+    get('po #') ||
+    get('po number') ||
+    get('ponumber') ||
+    null;
   const tripNum = parseTripNum(tripRaw);
 
   const primaryDriver = cleanDriver(get('primarydriver1') || get('primary driver1'));
