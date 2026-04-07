@@ -30,28 +30,6 @@
     --bg-accent: radial-gradient(circle at top right, rgba(59,130,246,0.12), transparent 32%);
   }
 
-  body.light-mode {
-    --bg: #eef3f8;
-    --surface: #fbfdff;
-    --surface2: #f2f6fb;
-    --border: #d8e1ee;
-    --border2: #c5d2e3;
-    --text: #18212f;
-    --text2: #526177;
-    --text3: #738196;
-    --accent: #2563eb;
-    --accent2: #1d4ed8;
-    --green: #15803d;
-    --green-bg: rgba(21,128,61,0.1);
-    --red: #dc2626;
-    --red-bg: rgba(220,38,38,0.09);
-    --yellow: #b45309;
-    --yellow-bg: rgba(180,83,9,0.11);
-    --blue-bg: rgba(37,99,235,0.1);
-    --shadow: 0 18px 42px rgba(104,129,167,0.16);
-    --bg-accent: radial-gradient(circle at top right, rgba(37,99,235,0.08), transparent 34%);
-  }
-
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -80,8 +58,6 @@
   .subtitle { color: var(--text3); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
   .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
   .target-badge { background: var(--blue-bg); border: 1px solid var(--accent); border-radius: 6px; padding: 4px 10px; font-size: 11px; color: var(--accent); font-weight: 600; letter-spacing: 0.5px; }
-  .theme-toggle { min-width: 118px; justify-content: center; }
-
   /* NAV */
   .nav { background: var(--surface); border-bottom: 1px solid var(--border); display: flex; gap: 0; padding: 0 24px; overflow-x: auto; }
   .nav-btn { padding: 12px 18px; border: none; background: none; color: var(--text2); cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
@@ -269,13 +245,6 @@
   .row-delete-btn:hover { background: rgba(239,68,68,0.2); }
   .edit-trigger { background: transparent; border: none; color: var(--text3); cursor: pointer; font-size: 13px; padding: 3px 7px; border-radius: 4px; transition: all 0.15s; }
   .edit-trigger:hover { background: var(--surface2); color: var(--accent); }
-  body.light-mode .badge-grey { background: rgba(115,129,150,0.12); color: #4a5a70; }
-  body.light-mode .target-badge { background: rgba(37,99,235,0.08); }
-  body.light-mode .btn-ghost:hover { background: #e9f0f8; }
-  body.light-mode .drop-zone:hover, body.light-mode .drop-zone.drag-over { background: rgba(37,99,235,0.08); }
-  body.light-mode .alert-banner { background: rgba(220,38,38,0.07); }
-  body.light-mode ::-webkit-scrollbar-track { background: #edf3f9; }
-  body.light-mode ::-webkit-scrollbar-thumb { background: #c1cfdf; }
 </style>
 </head>
 <body>
@@ -289,7 +258,6 @@
   <div class="target-badge">OTD Target ≥ 95%</div>
   <div class="header-right">
     <span id="record-count" style="color:var(--text3);font-size:12px;"></span>
-    <button id="theme-toggle" class="btn btn-ghost btn-sm theme-toggle" onclick="toggleTheme()">☀ Light Mode</button>
     <button class="btn btn-primary btn-sm" onclick="showImportModal()">⬆ Import Excel</button>
     <button id="undo-import-btn" class="btn btn-ghost btn-sm hidden" onclick="undoLastImport()">↩ Undo Last Import</button>
     <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Export</button>
@@ -841,21 +809,6 @@ function dbDeleteMeta(key) {
   });
 }
 
-function applyTheme(theme) {
-  const isLight = theme === 'light';
-  document.body.classList.toggle('light-mode', isLight);
-  localStorage.setItem('otp-otd-theme', isLight ? 'light' : 'dark');
-  const themeBtn = document.getElementById('theme-toggle');
-  if (themeBtn) {
-    themeBtn.textContent = isLight ? '🌙 Dark Mode' : '☀ Light Mode';
-  }
-}
-
-function toggleTheme() {
-  const isLight = document.body.classList.contains('light-mode');
-  applyTheme(isLight ? 'dark' : 'light');
-}
-
 function parseMonthValue(month) {
   if (!month) return Number.NEGATIVE_INFINITY;
   const parsed = new Date(`1 ${month}`);
@@ -905,7 +858,7 @@ async function loadLastImportBatch() {
 // ═══════════════════════════════════════════════════════════════
 
 async function init() {
-  applyTheme(localStorage.getItem('otp-otd-theme') || 'dark');
+  localStorage.removeItem('otp-otd-theme');
   db = await openDB();
   allShipments = await dbGetAll();
 
