@@ -11,7 +11,7 @@ import { db } from "./firebase";
 import { nowIso } from "./format";
 import { gradeLoad, isGhostShutdown, weekOf } from "./scoring";
 import type {
-  Customer, FleetSettings, Load, OnTimeStatus, OperatingCompany, RevisionSource,
+  Customer, FleetSettings, Load, OnTimeStatus, OperatingCompany, RevisionSource, Stop,
 } from "./types";
 import { COMPUTED_LOAD_KEYS } from "./types";
 
@@ -34,6 +34,14 @@ export function clientWritable(load: Partial<Load>): Record<string, unknown> {
   const copy: Record<string, unknown> = { ...load };
   delete copy.id;
   for (const k of COMPUTED_LOAD_KEYS) delete copy[k];
+  if (Array.isArray(copy.stops)) {
+    // Per-stop computed fields are server-owned too; stripping them here keeps a
+    // client save from being attributed grading changes in the revision history.
+    copy.stops = (copy.stops as Stop[]).map((s) => {
+      const { onTime: _onTime, dwellMin: _dwellMin, ...rest } = s;
+      return rest;
+    });
+  }
   return copy;
 }
 

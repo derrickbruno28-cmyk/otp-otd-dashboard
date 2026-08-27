@@ -91,7 +91,9 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if isOps()
         && request.resource.data.uploadedBy == request.auth.uid
-        && !request.resource.data.keys().hasAny(['parsed', 'sha256', 'error']);
+        && request.resource.data.get('parsed', null) == null
+        && request.resource.data.get('sha256', null) == null
+        && request.resource.data.get('error', null) == null;
       // Client drives status transitions (confirm/discard, loadId link);
       // parse results come only from the function.
       allow update: if isOps()

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   DEFAULT_FLEET, effectiveTarget, gapPoints, gradeLoad, gradeStop, isGhostShutdown,
   summarizeMetric, weekOf, weekRangeLabel,
@@ -191,7 +192,7 @@ describe("weight parsing", () => {
 
 describe("shared-code guard", () => {
   it("functions/src copies of scoring.ts and types.ts are byte-identical", () => {
-    const root = path.resolve(__dirname, "../../..");
+    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
     for (const f of ["scoring.ts", "types.ts"]) {
       const a = fs.readFileSync(path.join(root, "web/src/lib", f), "utf8");
       const b = fs.readFileSync(path.join(root, "functions/src", f), "utf8");
