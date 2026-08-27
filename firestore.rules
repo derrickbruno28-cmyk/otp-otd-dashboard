@@ -45,7 +45,10 @@ service cloud.firestore {
       allow update: if isOps()
         && !touchesComputed()
         && request.resource.data.updatedBy == request.auth.uid;
-      allow delete: if isManager();
+      // Managers delete anything; ops may delete only imported loads (batchId set) —
+      // that is the "undo last import" path, and imported rows are re-importable.
+      allow delete: if isManager()
+        || (isOps() && resource.data.get('batchId', null) != null);
 
       // Edit history is append-only and written only by Cloud Functions.
       // Nobody deletes or edits a revision — admin included.
@@ -94,11 +97,16 @@ service cloud.firestore {
         && request.resource.data.get('parsed', null) == null
         && request.resource.data.get('sha256', null) == null
         && request.resource.data.get('error', null) == null;
-      // Client drives status transitions (confirm/discard, loadId link);
-      // parse results come only from the function.
+      // Client drives status transitions (confirm/discard, loadId link); parse
+      // results come only from the function. One exception: recording a FAILED
+      // upload (status + error together), so a dead upload never spins forever.
       allow update: if isOps()
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
-             ['parsed', 'sha256', 'error', 'uploadedBy']);
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+             ['parsed', 'sha256', 'error', 'uploadedBy'])
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'error'])
+              && request.resource.data.status == 'error')
+        );
       allow delete: if false;
     }
 

@@ -37,7 +37,9 @@ function buildUpdatePatch(
     patch[key] = value;
     previous[key as string] = cur[key] ?? null;
   };
-  put("lsNumber", imp.lsNumber);
+  // lsNumber is synthesized (= loadNumber) when the LS # column is absent, and it is
+  // the identifier every report quotes — patch it ONLY when the file truly carried it.
+  if (mapping.lsNumber) put("lsNumber", imp.lsNumber);
   put("referenceNumber", imp.referenceNumber);
   put("equipmentType", imp.equipmentType);
   // status/opco are defaulted by rowsToLoads — only merge when the column was actually mapped
@@ -56,7 +58,9 @@ function buildUpdatePatch(
   const mergeStop = (dst: Stop | undefined, src: Stop | undefined) => {
     if (!dst || !src) return;
     const keys: (keyof Stop)[] = ["locationName", "address", "city", "zip", "appt", "actualArrival", "actualDeparture"];
-    if (nonEmpty(src.state)) keys.push("state", "timeZone");
+    // timeZone is derived from state on import, but a person may have deliberately
+    // overridden the zone (split-zone states) — only reset it when the state changed.
+    if (nonEmpty(src.state) && src.state !== dst.state) keys.push("state", "timeZone");
     for (const k of keys) {
       const v = src[k];
       if (nonEmpty(v) && v !== dst[k]) {

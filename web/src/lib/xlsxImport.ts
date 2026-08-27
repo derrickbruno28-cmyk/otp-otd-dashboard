@@ -137,6 +137,9 @@ function wall(y: number, mo: number, d: number, h: number, mi: number): string |
 }
 
 function wallFromLocal(d: Date): string | null {
+  // A time-only Excel cell arrives as a Date on 1899-12-30/31 — importing that as an
+  // instant would grade the stop EARLY by a century. Treat pre-2000 as unparseable.
+  if (d.getFullYear() < 2000) return null;
   return wall(d.getFullYear(), d.getMonth() + 1, d.getDate(), d.getHours(), d.getMinutes());
 }
 
@@ -160,6 +163,9 @@ function wallFromText(t: string): string | null {
     if (ap === "A" && h === 12) h = 0;
     return wall(y, Number(m[1]), Number(m[2]), h, Number(m[5] ?? "0"));
   }
+  // "8/9/2026 14" (a bare hour, no minutes) parses as midnight — reject it so it
+  // surfaces as a problem line instead of silently importing the wrong time.
+  if (/\d[/\-.]\d{2,4}\s+\d{1,2}\s*$/.test(t)) return null;
   const d = new Date(t);
   return Number.isNaN(d.getTime()) ? null : wallFromLocal(d);
 }

@@ -109,10 +109,13 @@ export const generateWeeklyAudit = onCall(async (request) => {
     return { onTime: s.onTime, late: s.denominator - s.onTime, rate: s.rate, target, gapPts: gapPoints(s.rate, target) };
   };
   const status = (l: Load, m: "otp" | "otd") => l[m]?.status ?? "PENDING";
+  // "Fully scored" = both metrics graded, so fullyScored + eitherPending partitions
+  // the week's loads exactly (the client audit uses the identical rule).
   const scoredCount = (ls: Load[]) =>
-    ls.filter((l) => status(l, "otp") !== "PENDING" || status(l, "otd") !== "PENDING").length;
-  const pending = loads
-    .filter((l) => status(l, "otp") === "PENDING" || status(l, "otd") === "PENDING").length;
+    ls.filter((l) => status(l, "otp") !== "PENDING" && status(l, "otd") !== "PENDING").length;
+  const pendingCount = (ls: Load[]) =>
+    ls.filter((l) => status(l, "otp") === "PENDING" || status(l, "otd") === "PENDING").length;
+  const pending = pendingCount(loads);
 
   const prevOtp = summarizeMetric(prevLoads, "otp", customersById);
   const prevOtd = summarizeMetric(prevLoads, "otd", customersById);
@@ -121,6 +124,7 @@ export const generateWeeklyAudit = onCall(async (request) => {
         otpPct: prevOtp.rate, otpLate: prevOtp.denominator - prevOtp.onTime,
         otdPct: prevOtd.rate, otdLate: prevOtd.denominator - prevOtd.onTime,
         totalScored: scoredCount(prevLoads),
+        pending: pendingCount(prevLoads),
       }
     : null;
 

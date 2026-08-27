@@ -25,7 +25,9 @@ export function TimeInput({ value, timeZone, onCommit, onCancel, autoFocus, aria
         onBlur={(e) => {
           if (cancelled.current) { cancelled.current = false; return; }
           const next = e.target.value; // DOM value — never stale on the Enter-then-blur path
-          if (next !== original) onCommit(next ? localInputToIso(next, timeZone) : null);
+          // Commit even when unchanged: the caller treats an identical value as a
+          // plain close, and without this the inline cell editor would stay open.
+          onCommit(next ? localInputToIso(next, timeZone) : null);
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {

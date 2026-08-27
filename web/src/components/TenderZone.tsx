@@ -211,18 +211,26 @@ function TenderReview({ tender, existing, onClose }: {
     const stops: Stop[] = draft.stops.map(({ px: _px, type, ...s }, i) =>
       ({ ...s, seq: i + 1, type: type as StopType }));
     setSaving(true);
+    let loadId: string;
     try {
-      const loadId = await createLoad({ ...draft, stops, tenderId: tender.id ?? null }, signer, "tender");
-      await updateDoc(doc(db, "tenders", tender.id!), { status: "confirmed", loadId });
-      toast.push("ok", `Load ${draft.lsNumber} created from tender`);
-      onClose();
+      loadId = await createLoad({ ...draft, stops, tenderId: tender.id ?? null }, signer, "tender");
     } catch (e: unknown) {
       const msg = String((e as Error)?.message ?? e);
       toast.push("error", `Create failed: ${msg}`);
       setProblems([`Create failed: ${msg}`]);
-    } finally {
       setSaving(false);
+      return;
     }
+    try {
+      await updateDoc(doc(db, "tenders", tender.id!), { status: "confirmed", loadId });
+      toast.push("ok", `Load ${draft.lsNumber} created from tender`);
+    } catch (e: unknown) {
+      // The load exists — say so, and leave the tender open rather than implying failure.
+      toast.push("error",
+        `Load ${draft.lsNumber} was created, but marking the tender confirmed failed: ${String((e as Error)?.message ?? e)}`);
+    }
+    setSaving(false);
+    onClose();
   };
 
   const discard = async () => {
@@ -489,9 +497,9 @@ function TenderStatusCell({ t, onReview }: { t: Tender; onReview(): void }) {
       );
     case "confirmed":
       return (
-        <span className="font-mono text-xs text-ontime underline underline-offset-2"
+        <span className="font-mono text-xs text-ontime"
           title={t.loadId ? `Load ID ${t.loadId} — find it on the Loads tab` : undefined}>
-          load created
+          ✓ load created
         </span>
       );
     case "discarded":
@@ -568,7 +576,10 @@ export function TenderZone({ open, onClose, existing }: {
       } catch (e: unknown) {
         const msg = String((e as Error)?.message ?? e);
         toast.push("error", `Upload failed for ${file.name}: ${msg}`);
-        try { await updateDoc(dref, { status: "error", error: `Upload failed: ${msg}` }); } catch { /* doc write itself failed */ }
+        try { await updateDoc(dref, { status: "error", error: `Upload failed: ${msg}` }); }
+        catch (e2: unknown) {
+          toast.push("error", `Could not record the failure on the tender: ${String((e2 as Error)?.message ?? e2)}`);
+        }
       } finally {
         setUploading((n) => n - 1);
       }

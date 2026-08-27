@@ -46,13 +46,6 @@ interface TimeEdit { loadId: string; seq: number; field: "actualArrival" | "actu
 const errMsg = (e: unknown): string => String((e as Error)?.message ?? e);
 const halt = (e: ReactMouseEvent<HTMLElement>) => e.stopPropagation();
 
-/** Computed stop fields never travel back up on a client write. */
-function stripStop(s: Stop): Stop {
-  const rest = { ...s };
-  delete rest.onTime;
-  delete rest.dwellMin;
-  return rest;
-}
 function firstPickup(l: Load): Stop | null {
   return l.stops.find((s) => s.type === "PICKUP") ?? null;
 }
@@ -222,13 +215,26 @@ export function LoadsScreen({ loads, filtered, filters, onFilters }: {
   const saveCf = (l: Load, metric: "otp" | "otd", v: CfCode | null) =>
     updateLoad(l.id!, { cf: { otp: l.cf?.otp ?? null, otd: l.cf?.otd ?? null, [metric]: v } }, signer, "manual")
       .catch(fail("CF save"));
+  const closeTimeEditIfCurrent = (loadId: string, seq: number, field: TimeEdit["field"]) =>
+    setTimeEdit((t) =>
+      t && t.loadId === loadId && t.seq === seq && t.field === field ? null : t);
   const commitTime = async (l: Load, seq: number, field: TimeEdit["field"], next: string | null) => {
-    const stops = l.stops.map((s) => (s.seq === seq ? { ...s, [field]: next } : s)).map(stripStop);
+    const current = l.stops.find((s) => s.seq === seq)?.[field] ?? null;
+    if ((next ?? null) === (current ?? null)) {
+      // Unchanged: close without a pointless write.
+      closeTimeEditIfCurrent(l.id!, seq, field);
+      return;
+    }
+    const stops = l.stops.map((s) => (s.seq === seq ? { ...s, [field]: next } : s));
+    // Close this cell's editor immediately — awaiting the server ack and then
+    // clearing unconditionally would unmount whichever editor the user tabbed
+    // into next, silently dropping their half-typed entry.
+    closeTimeEditIfCurrent(l.id!, seq, field);
     try {
       await updateLoad(l.id!, { stops }, signer, "manual");
-      setTimeEdit(null);
     } catch (e) {
-      fail("Time save")(e); // editor stays open so the keyed value isn't lost
+      fail("Time save")(e);
+      setTimeEdit({ loadId: l.id!, seq, field }); // reopen so the value isn't lost silently
     }
   };
   const isEditing = (l: Load, s: Stop, field: TimeEdit["field"]) =>

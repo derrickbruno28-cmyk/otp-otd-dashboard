@@ -1,25 +1,115 @@
 {
   "indexes": [
-    { "collectionGroup": "loads", "queryScope": "COLLECTION", "fields": [
-      { "fieldPath": "customerId", "order": "ASCENDING" },
-      { "fieldPath": "firstPickupAppt", "order": "DESCENDING" } ] },
-    { "collectionGroup": "loads", "queryScope": "COLLECTION", "fields": [
-      { "fieldPath": "weekYear", "order": "ASCENDING" },
-      { "fieldPath": "weekNumber", "order": "ASCENDING" },
-      { "fieldPath": "customerId", "order": "ASCENDING" } ] },
-    { "collectionGroup": "loads", "queryScope": "COLLECTION", "fields": [
-      { "fieldPath": "operatingCompany", "order": "ASCENDING" },
-      { "fieldPath": "weekYear", "order": "ASCENDING" },
-      { "fieldPath": "weekNumber", "order": "ASCENDING" } ] },
-    { "collectionGroup": "loads", "queryScope": "COLLECTION", "fields": [
-      { "fieldPath": "customerId", "order": "ASCENDING" },
-      { "fieldPath": "loadNumber", "order": "ASCENDING" } ] },
-    { "collectionGroup": "loads", "queryScope": "COLLECTION", "fields": [
-      { "fieldPath": "monthKey", "order": "ASCENDING" },
-      { "fieldPath": "primaryDriverId", "order": "ASCENDING" } ] },
-    { "collectionGroup": "revisions", "queryScope": "COLLECTION_GROUP", "fields": [
-      { "fieldPath": "uid", "order": "ASCENDING" },
-      { "fieldPath": "at", "order": "DESCENDING" } ] }
+    {
+      "collectionGroup": "loads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "customerId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "firstPickupAppt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "loads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "weekYear",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "weekNumber",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "customerId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "loads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "operatingCompany",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "weekYear",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "weekNumber",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "loads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "customerId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "loadNumber",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "loads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "monthKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "primaryDriverId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "revisions",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "uid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "at",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "driverFlags",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "driverId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "weekYear",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "weekNumber",
+          "order": "DESCENDING"
+        }
+      ]
+    }
   ],
   "fieldOverrides": []
 }

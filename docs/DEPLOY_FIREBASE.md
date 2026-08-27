@@ -92,6 +92,10 @@ firebase use --add
 firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
 
+> The storage rules call `firestore.get(...)` to check the uploader's role and tender
+> doc (cross-service rules). The first deploy prompts you to grant the Storage rules
+> service account Firestore access — answer yes; it is a one-time grant.
+
 ## 8. Set the Anthropic API key secret
 
 Tender parsing (`parseTender`) reads `ANTHROPIC_API_KEY` from Secret Manager — it is never in the client bundle. Set it **before** deploying functions:

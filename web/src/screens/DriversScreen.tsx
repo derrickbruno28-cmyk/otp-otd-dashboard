@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  addDoc, collection, doc, limit, onSnapshot, orderBy, query, updateDoc, where,
+  addDoc, collection, doc, limit, onSnapshot, orderBy, query, updateDoc, where, writeBatch,
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { fmtDateTime, fmtPct, nowIso } from "../lib/format";
@@ -146,18 +146,22 @@ export function DriversScreen({ loads }: { loads: Load[] }) {
     const { flag, step } = confirm;
     setConfirming(true);
     try {
-      await updateDoc(doc(db, "driverFlags", flag.id!), {
+      // One atomic batch: a personnel action must never half-apply, leaving the
+      // flag and the driver record contradicting each other.
+      const batch = writeBatch(db);
+      batch.update(doc(db, "driverFlags", flag.id!), {
         confirmedStep: step,
         confirmedBy: profile.id!,
         confirmedByName: profile.displayName,
         confirmedAt: nowIso(),
       });
-      await updateDoc(doc(db, "drivers", flag.driverId), {
+      batch.update(doc(db, "drivers", flag.driverId), {
         reviewState: step,
         reviewedBy: profile.id!,
         reviewedByName: profile.displayName,
         reviewedAt: nowIso(),
       });
+      await batch.commit();
       toast.push("ok", `${REVIEW_LABEL[step]} confirmed for ${flag.driverName}`);
     } catch (e) {
       toast.push("error", `Confirm failed: ${String((e as Error)?.message ?? e)}`);

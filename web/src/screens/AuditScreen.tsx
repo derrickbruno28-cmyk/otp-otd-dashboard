@@ -130,6 +130,7 @@ function computeAudit(a: ComputeArgs): WeeklyAudit {
         return {
           otpPct: po.rate, otpLate: po.late, otdPct: pd.rate, otdLate: pd.late,
           totalScored: prevLoads.filter((l) => !pendingActuals(l)).length,
+          pending: prevLoads.filter(pendingActuals).length,
         };
       })()
     : null;
@@ -207,6 +208,7 @@ function computeAudit(a: ComputeArgs): WeeklyAudit {
       };
     });
   const repeatIds = new Set(flaggedDrivers.filter((d) => d.repeatFromPrevWeek).map((d) => d.driverId));
+  const flaggedIds = new Set(flaggedDrivers.map((d) => d.driverId));
 
   // MTD = the month of the week's Sunday; drivers counted individually here.
   const monthKey = weekOf(dayNumberToUtcDate(startDay).toISOString(), "UTC").monthKey;
@@ -229,9 +231,13 @@ function computeAudit(a: ComputeArgs): WeeklyAudit {
     .slice(0, 10)
     .map((p) => ({
       ...p,
-      alert: repeatIds.has(p.driverId)
-        ? `Monitoring — Step 1 Call/Action | Week ${weekNumber} Repeat → Step 2`
-        : "Monitoring — Step 1 Call/Action",
+      // Mirrors generateWeeklyAudit: an alert implies a proposed SOP step, so a
+      // driver who was never flagged this week gets a blank cell — not "Step 1".
+      alert: flaggedIds.has(p.driverId)
+        ? repeatIds.has(p.driverId)
+          ? `Monitoring — Step 1 Call/Action | Week ${weekNumber} Repeat → Step 2`
+          : "Monitoring — Step 1 Call/Action"
+        : "",
     }));
 
   return {
@@ -556,13 +562,13 @@ export function AuditScreen({ loads }: { loads: Load[] }) {
                     <tr className="border-t border-rule">
                       <td className={`${TD} font-mono text-xs`}>OTP</td>
                       <td className={TD}><Pct rate={sc.otp.rate} pending={sc.pending} /> <span className="text-late text-xs tnum">({sc.otp.late} late)</span></td>
-                      <td className={TD}><span className="tnum">{fmtPct(wow.otpPct)}</span> <span className="text-late text-xs tnum">({wow.otpLate} late)</span></td>
+                      <td className={TD}><Pct rate={wow.otpPct} pending={wow.pending} /> <span className="text-late text-xs tnum">({wow.otpLate} late)</span></td>
                       <td className={TD}><DeltaPts cur={sc.otp.rate} prev={wow.otpPct} /></td>
                     </tr>
                     <tr className="border-t border-rule">
                       <td className={`${TD} font-mono text-xs`}>OTD</td>
                       <td className={TD}><Pct rate={sc.otd.rate} pending={sc.pending} /> <span className="text-late text-xs tnum">({sc.otd.late} late)</span></td>
-                      <td className={TD}><span className="tnum">{fmtPct(wow.otdPct)}</span> <span className="text-late text-xs tnum">({wow.otdLate} late)</span></td>
+                      <td className={TD}><Pct rate={wow.otdPct} pending={wow.pending} /> <span className="text-late text-xs tnum">({wow.otdLate} late)</span></td>
                       <td className={TD}><DeltaPts cur={sc.otd.rate} prev={wow.otdPct} /></td>
                     </tr>
                     <tr className="border-t border-rule">

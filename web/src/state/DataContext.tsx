@@ -3,6 +3,7 @@ import {
 } from "react";
 import { collection, doc, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "../lib/firebase";
+import { useAuth } from "./AuthContext";
 import { DEFAULT_FLEET } from "../lib/scoring";
 import type { AppUser, Customer, Driver, FailReason, FleetSettings } from "../lib/types";
 
@@ -29,8 +30,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [fleet, setFleet] = useState<FleetSettings>(DEFAULT_FLEET);
   const [readyCount, setReadyCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const { fbUser } = useAuth();
+  const uid = fbUser?.uid ?? null;
 
   useEffect(() => {
+    // Firestore denies these reads while signed out, which permanently kills the
+    // listeners — so tear down on sign-out and resubscribe per signed-in user.
+    setReadyCount(0);
+    setError(null);
+    if (!uid) {
+      setCustomers([]); setReasons([]); setDrivers([]); setUsers([]);
+      return;
+    }
     const bump = () => setReadyCount((n) => n + 1);
     const fail = (e: unknown) => setError(String((e as Error)?.message ?? e));
     const subs = [
@@ -56,7 +67,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }, fail),
     ];
     return () => subs.forEach((u) => u());
-  }, []);
+  }, [uid]);
 
   const value = useMemo<DataState>(() => ({
     customers,

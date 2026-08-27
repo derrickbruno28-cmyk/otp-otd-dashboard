@@ -278,7 +278,7 @@ export interface WeeklyAudit {
   scorecard: {
     otp: AuditMetricRow; otd: AuditMetricRow;
     totalScored: number; pending: number;
-    wow: { prev: { otpPct: number | null; otpLate: number; otdPct: number | null; otdLate: number; totalScored: number } | null };
+    wow: { prev: { otpPct: number | null; otpLate: number; otdPct: number | null; otdLate: number; totalScored: number; pending: number } | null };
     cfBreakdown: {
       otp: CfBreakdownRow | null; otd: CfBreakdownRow | null;  // null when scope excludes USPS
       shuttleExcluded: { otp: number; otd: number };

@@ -9,4 +9,4 @@ export { onLoadWrite } from "./onLoadWrite";
 export { recalcDriverStats } from "./driverStats";
 export { evaluateDriverFlags, evaluateDriverFlagsScheduled } from "./driverFlags";
 export { generateWeeklyAudit } from "./weeklyAudit";
-export { parseTender } from "./parseTender";
+export { parseTender, purgeTenderPdfs } from "./parseTender";

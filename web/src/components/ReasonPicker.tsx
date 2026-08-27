@@ -53,6 +53,9 @@ export function ReasonPicker({ metric, entries, onChange, disabled, suggestCasca
   const { profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  // Fixed-position anchor: the panel renders position:fixed so the loads table's
+  // overflow container can't clip it.
+  const [anchor, setAnchor] = useState({ top: 0, left: 0 });
   const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,8 +63,17 @@ export function ReasonPicker({ metric, entries, onChange, disabled, suggestCasca
     const onDown = (e: MouseEvent) => {
       if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
     };
+    // A fixed panel would drift from its trigger on scroll — close instead.
+    const onScroll = (e: Event) => {
+      if (boxRef.current && e.target instanceof Node && boxRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("scroll", onScroll, true);
+    };
   }, [open]);
 
   const applicable = useMemo(
@@ -150,7 +162,14 @@ export function ReasonPicker({ metric, entries, onChange, disabled, suggestCasca
         <button
           type="button"
           disabled={disabled}
-          onClick={() => setOpen((o) => !o)}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setAnchor({
+              top: Math.min(r.bottom + 4, window.innerHeight - 340),
+              left: Math.min(r.left, window.innerWidth - 336),
+            });
+            setOpen((o) => !o);
+          }}
           aria-expanded={open}
           className="rounded-full border border-ruleStrong px-2.5 py-1 font-mono text-xs text-ink2 hover:bg-surface2 disabled:opacity-50"
         >
@@ -159,7 +178,8 @@ export function ReasonPicker({ metric, entries, onChange, disabled, suggestCasca
       </div>
       {open && !disabled && (
         <div
-          className="absolute left-0 top-full z-30 mt-1 w-80 max-w-[90vw] rounded-lg border border-ruleStrong bg-surface p-2 shadow-xl"
+          style={{ position: "fixed", top: anchor.top, left: anchor.left }}
+          className="z-50 w-80 max-w-[90vw] rounded-lg border border-ruleStrong bg-surface p-2 shadow-xl"
           onKeyDown={(e) => {
             if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); }
           }}

@@ -5,6 +5,7 @@
  */
 import { createHash } from "crypto";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
@@ -90,8 +91,19 @@ export const parseTender = onObjectFinalized(
     const tenderId = match[1];
     const ref = getFirestore().collection("tenders").doc(tenderId);
 
+    const file = getStorage().bucket(event.data.bucket).file(name);
+    // Only parse objects that belong to a tender doc an ops user created first
+    // (status "uploaded"). Anything else at this path is an orphan — delete it
+    // rather than burn a model call on an arbitrary PDF.
+    const existing = await ref.get();
+    const existingStatus = existing.exists ? (existing.data() as { status?: string }).status : null;
+    if (existingStatus !== "uploaded" && existingStatus !== "parsing") {
+      console.warn(`Orphan or out-of-band object at ${name} (doc status: ${existingStatus}); deleting object.`);
+      await file.delete({ ignoreNotFound: true });
+      return;
+    }
+
     try {
-      const file = getStorage().bucket(event.data.bucket).file(name);
       const [bytes] = await file.download();
       const sha256 = createHash("sha256").update(bytes).digest("hex");
       await ref.set({ status: "parsing", sha256 }, { merge: true });
@@ -141,6 +153,39 @@ export const parseTender = onObjectFinalized(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await ref.set({ status: "error", error: message }, { merge: true });
+    }
+  },
+);
+
+/**
+ * Retention: when settings/fleet.tenderRetentionDays is set, strip stored tender
+ * PDFs older than the window (the parsed record, sha256 fingerprint, and filename
+ * remain). Runs daily; deletes are logged per tender.
+ */
+export const purgeTenderPdfs = onSchedule(
+  { schedule: "every day 03:00", timeZone: "America/Chicago" },
+  async () => {
+    const fleetSnap = await getFirestore().collection("settings").doc("fleet").get();
+    const fleet: FleetSettings = fleetSnap.exists
+      ? { ...DEFAULT_FLEET, ...(fleetSnap.data() as FleetSettings) }
+      : DEFAULT_FLEET;
+    const days = fleet.tenderRetentionDays;
+    if (typeof days !== "number" || days <= 0) return;
+    const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+    const snap = await getFirestore().collection("tenders")
+      .where("createdAt", "<", cutoff)
+      .limit(500)
+      .get();
+    for (const docSnap of snap.docs) {
+      const t = docSnap.data() as { storagePath?: string | null };
+      if (!t.storagePath) continue;
+      try {
+        await getStorage().bucket().file(t.storagePath).delete({ ignoreNotFound: true });
+        await docSnap.ref.set({ storagePath: null }, { merge: true });
+        console.log(`Purged tender PDF ${t.storagePath} (older than ${days}d)`);
+      } catch (e) {
+        console.error(`Failed to purge ${t.storagePath}:`, e);
+      }
     }
   },
 );

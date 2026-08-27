@@ -30,9 +30,8 @@ export const onLoadWrite = onDocumentWritten("loads/{loadId}", async (event) => 
   const after = afterSnap?.exists ? (afterSnap.data() as Load) : null;
   const loadId = event.params.loadId;
 
-  // Deletion: record it in the history's collection is gone with the doc — write an
-  // auditLog-style tombstone under importBatches? No: deletes are manager-only and rare;
-  // the revision subcollection survives the parent delete in Firestore, so append there.
+  // Deletion tombstone: the revisions subcollection survives the parent delete,
+  // so the history stays answerable even for removed loads.
   if (before && !after) {
     const rev: Revision = {
       at: new Date().toISOString(),
@@ -43,71 +42,85 @@ export const onLoadWrite = onDocumentWritten("loads/{loadId}", async (event) => 
       summary: `Load ${before.lsNumber || loadId} deleted`,
       changes: [{ path: "(document)", before: "exists", after: "deleted" }],
     };
-    await db().collection("loads").doc(loadId).collection("revisions").add(rev);
+    await db().collection("loads").doc(loadId).collection("revisions")
+      .doc(`${event.id}_del`).set(rev);
     return;
   }
   if (!after) return;
 
   // ---- 1. Recompute canonical results ----
+  // Transactional against the FRESH document: v2 triggers carry no cross-event
+  // ordering guarantee, so grading this event's snapshot and merging it back could
+  // revert an actual keyed between the trigger and the write. The transaction
+  // re-reads, grades the latest data, and retries on contention.
   const customer = await getCustomer(after.customerId);
   const fleet = await getFleet();
-  const graded = gradeLoad(after, customer);
-  const week = graded.firstPickupAppt
-    ? weekOf(graded.firstPickupAppt, fleet.timeZone)
-    : { weekYear: null, weekNumber: null, monthKey: null };
-
-  const computed = {
-    stops: graded.stops,
-    otp: graded.otp,
-    otd: graded.otd,
-    stopOnTimePct: graded.stopOnTimePct,
-    transitMin: graded.transitMin,
-    firstPickupAppt: graded.firstPickupAppt,
-    finalDeliveryAppt: graded.finalDeliveryAppt,
-    weekNumber: week.weekNumber,
-    weekYear: week.weekYear,
-    monthKey: week.monthKey,
-  };
-
-  const current = {
-    stops: after.stops,
-    otp: after.otp ?? null,
-    otd: after.otd ?? null,
-    stopOnTimePct: after.stopOnTimePct ?? null,
-    transitMin: after.transitMin ?? null,
-    firstPickupAppt: after.firstPickupAppt ?? null,
-    finalDeliveryAppt: after.finalDeliveryAppt ?? null,
-    weekNumber: after.weekNumber ?? null,
-    weekYear: after.weekYear ?? null,
-    monthKey: after.monthKey ?? null,
-  };
-
-  const stale = !deepEqual(
-    JSON.parse(JSON.stringify(current)),
-    JSON.parse(JSON.stringify(computed)),
-  );
-  if (stale) {
-    await afterSnap!.ref.set(
-      { ...JSON.parse(JSON.stringify(computed)), updatedAt: new Date().toISOString() },
-      { merge: true },
+  await db().runTransaction(async (tx) => {
+    const fresh = await tx.get(afterSnap!.ref);
+    if (!fresh.exists) return;
+    const cur = fresh.data() as Load;
+    const graded = gradeLoad(cur, customer);
+    const week = graded.firstPickupAppt
+      ? weekOf(graded.firstPickupAppt, fleet.timeZone)
+      : { weekYear: null, weekNumber: null, monthKey: null };
+    const computed = {
+      stops: graded.stops,
+      otp: graded.otp,
+      otd: graded.otd,
+      stopOnTimePct: graded.stopOnTimePct,
+      transitMin: graded.transitMin,
+      firstPickupAppt: graded.firstPickupAppt,
+      finalDeliveryAppt: graded.finalDeliveryAppt,
+      weekNumber: week.weekNumber,
+      weekYear: week.weekYear,
+      monthKey: week.monthKey,
+    };
+    const current = {
+      stops: cur.stops,
+      otp: cur.otp ?? null,
+      otd: cur.otd ?? null,
+      stopOnTimePct: cur.stopOnTimePct ?? null,
+      transitMin: cur.transitMin ?? null,
+      firstPickupAppt: cur.firstPickupAppt ?? null,
+      finalDeliveryAppt: cur.finalDeliveryAppt ?? null,
+      weekNumber: cur.weekNumber ?? null,
+      weekYear: cur.weekYear ?? null,
+      monthKey: cur.monthKey ?? null,
+    };
+    const stale = !deepEqual(
+      JSON.parse(JSON.stringify(current)),
+      JSON.parse(JSON.stringify(computed)),
     );
-  }
+    if (stale) {
+      tx.set(
+        afterSnap!.ref,
+        { ...JSON.parse(JSON.stringify(computed)), updatedAt: new Date().toISOString() },
+        { merge: true },
+      );
+    }
+  });
 
   // ---- 2. Append one revision for THIS write event ----
-  const changes = diffObjects(
+  const allChanges = diffObjects(
     before ? (JSON.parse(JSON.stringify(before)) as Record<string, unknown>) : null,
     JSON.parse(JSON.stringify(after)) as Record<string, unknown>,
   );
-  if (!changes.length) return;
+  if (!allChanges.length) return;
 
+  // "otp" must not swallow "otpReasons": require end-of-path or a separator.
+  const COMPUTED_PATH =
+    /^((otp|otd|stopOnTimePct|transitMin|firstPickupAppt|finalDeliveryAppt|weekNumber|weekYear|monthKey)($|[.[])|stops\[\d+\]\.(onTime|dwellMin)($|[.[]))/;
   const isSystemPass =
     before !== null &&
     deepEqual(
       { u: before.updatedBy, s: before.lastWriteSource },
       { u: after.updatedBy, s: after.lastWriteSource },
     ) &&
-    changes.every((c) =>
-      /^(otp|otd|stopOnTimePct|transitMin|firstPickupAppt|finalDeliveryAppt|weekNumber|weekYear|monthKey|stops\[\d+\]\.(onTime|dwellMin))/.test(c.path));
+    allChanges.every((c) => COMPUTED_PATH.test(c.path));
+  // A person's revision shows only what they actually changed — grading echoes are
+  // the recompute's story, not theirs.
+  const changes = isSystemPass ? allChanges : allChanges.filter((c) => !COMPUTED_PATH.test(c.path));
+  if (!changes.length) return;
 
   const rev: Revision = isSystemPass
     ? {
@@ -131,5 +144,9 @@ export const onLoadWrite = onDocumentWritten("loads/{loadId}", async (event) => 
         changes,
       };
 
-  await afterSnap!.ref.collection("revisions").add({ ...rev, _seq: FieldValue.serverTimestamp() });
+  // Keyed by the CloudEvent id: at-least-once delivery retries overwrite the same
+  // revision instead of duplicating it.
+  await afterSnap!.ref.collection("revisions")
+    .doc(event.id.replace(/[/]/g, "_"))
+    .set({ ...rev, _seq: FieldValue.serverTimestamp() });
 });

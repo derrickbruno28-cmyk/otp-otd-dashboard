@@ -6,13 +6,25 @@ service firebase.storage {
         && request.auth.token.email_verified == true
         && request.auth.token.email.matches('.*@ghlogisticsllc[.]com');
     }
-    // Tender PDFs only. Uploads capped at 20MB and must be PDFs; deletes are
-    // function-only (retention switch), so evidence can't quietly disappear.
+    function isOps() {
+      return signedIn()
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role
+             in ['ops', 'manager', 'admin'];
+    }
+    // Tender PDFs only. An upload must correspond to a tenders doc the SAME ops user
+    // just created (status "uploaded") — this closes the two tamper paths: a viewer
+    // uploading arbitrary PDFs that burn model calls, and re-uploading a different
+    // document to a confirmed tender's freed path after retention stripping.
+    // Deletes are function-only (retention switch), so evidence can't quietly disappear.
     match /tenders/{tenderId} {
       allow read: if signedIn();
-      allow create: if signedIn()
+      allow create: if isOps()
         && request.resource.size < 20 * 1024 * 1024
-        && request.resource.contentType == 'application/pdf';
+        && request.resource.contentType == 'application/pdf'
+        && firestore.get(/databases/(default)/documents/tenders/$(tenderId)).data.uploadedBy
+             == request.auth.uid
+        && firestore.get(/databases/(default)/documents/tenders/$(tenderId)).data.status
+             == 'uploaded';
       allow update, delete: if false;
     }
     match /{allPaths=**} {

@@ -11,7 +11,7 @@ import { db } from "./firebase";
 import { nowIso } from "./format";
 import { gradeLoad, isGhostShutdown, weekOf } from "./scoring";
 import type {
-  Customer, FleetSettings, Load, OnTimeStatus, OperatingCompany, RevisionSource, Stop,
+  Customer, FleetSettings, Load, OnTimeStatus, OperatingCompany, RevisionSource,
 } from "./types";
 import { COMPUTED_LOAD_KEYS } from "./types";
 
@@ -34,14 +34,10 @@ export function clientWritable(load: Partial<Load>): Record<string, unknown> {
   const copy: Record<string, unknown> = { ...load };
   delete copy.id;
   for (const k of COMPUTED_LOAD_KEYS) delete copy[k];
-  if (Array.isArray(copy.stops)) {
-    // Per-stop computed fields are server-owned too; stripping them here keeps a
-    // client save from being attributed grading changes in the revision history.
-    copy.stops = (copy.stops as Stop[]).map((s) => {
-      const { onTime: _onTime, dwellMin: _dwellMin, ...rest } = s;
-      return rest;
-    });
-  }
+  // Per-stop onTime/dwellMin pass through UNCHANGED deliberately: echoing the last
+  // server grade back means a client save diffs clean against the stored doc, so the
+  // revision history attributes grading changes to the recompute pass, never to the
+  // person. onLoadWrite recomputes from a fresh read on every write regardless.
   return copy;
 }
 
