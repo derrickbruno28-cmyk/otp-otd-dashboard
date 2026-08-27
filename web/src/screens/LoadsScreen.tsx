@@ -178,7 +178,7 @@ export function LoadsScreen({ loads, filtered, filters, onFilters }: {
   const [exportOpen, setExportOpen] = useState(false);
 
   const counts = useMemo(() => ({
-    ghost: loads.filter(isGhostShutdown).length,
+    ghost: loads.filter((l) => isGhostShutdown(l)).length,
     needsCf: loads.filter((l) => needsCfCoding(l, customersById)).length,
     missing: loads.filter(missingReason).length,
     pending: loads.filter(pendingActuals).length,

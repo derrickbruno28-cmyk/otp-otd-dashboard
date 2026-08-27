@@ -7,3 +7,4 @@ functions/lib/
 web/.env
 *.local
 .firebase/
+functions/.secret.local

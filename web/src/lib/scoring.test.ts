@@ -158,6 +158,17 @@ describe("ghost shutdown (USPS)", () => {
     l.otd = { status: "LATE", varianceMin: 60, deadline: null };
     expect(isGhostShutdown(l)).toBe(true);
   });
+  it("flags an overdue, still-rolling USPS load before any actual is keyed", () => {
+    const l = load([
+      stop({ seq: 1, type: "PICKUP", appt: "2026-08-26T08:00:00Z",
+        actualArrival: "2026-08-26T07:52:00Z", actualDeparture: "2026-08-26T09:00:00Z" }),
+      stop({ seq: 2, type: "DELIVERY", appt: "2026-08-26T14:00:00Z" }),
+    ], { status: "In Transit" });
+    l.otd = { status: "PENDING", varianceMin: null, deadline: null };
+    l.finalDeliveryAppt = "2026-08-26T14:00:00.000Z";
+    expect(isGhostShutdown(l, "2026-08-27T02:00:00.000Z")).toBe(true);
+    expect(isGhostShutdown(l, "2026-08-26T10:00:00.000Z")).toBe(false);
+  });
   it("clears once Delivered, and never applies to other customers", () => {
     const l = load([], { status: "Delivered" });
     l.otd = { status: "LATE", varianceMin: 60, deadline: null };

@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import {
-  GoogleAuthProvider, connectAuthEmulator, getAuth, signInWithPopup, signOut,
+  GoogleAuthProvider, connectAuthEmulator, getAuth, signInWithCredential, signInWithPopup, signOut,
 } from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { connectStorageEmulator, getStorage } from "firebase/storage";
@@ -27,6 +27,11 @@ if (import.meta.env.VITE_USE_EMULATORS === "1") {
   connectFirestoreEmulator(db, "127.0.0.1", 8080);
   connectStorageEmulator(storage, "127.0.0.1", 9199);
   connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+  // E2E/demo hook, emulator-only: the popup path needs apis.google.com, which a
+  // sandboxed test network may block. The Auth emulator accepts an unsigned Google
+  // credential, and the domain blocking functions still run on it.
+  (window as unknown as Record<string, unknown>).__signInWithFakeGoogle = (claims: object) =>
+    signInWithCredential(auth, GoogleAuthProvider.credential(JSON.stringify(claims)));
 }
 
 /**

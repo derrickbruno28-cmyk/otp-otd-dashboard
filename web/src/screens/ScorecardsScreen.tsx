@@ -135,7 +135,7 @@ export function ScorecardsScreen({ loads, filtered, filters, onFilters }: {
   const { customers, customersById, reasonsById, fleet } = useData();
 
   const quickCounts = useMemo(() => ({
-    ghost: loads.filter(isGhostShutdown).length,
+    ghost: loads.filter((l) => isGhostShutdown(l)).length,
     needsCf: loads.filter((l) => needsCfCoding(l, customersById)).length,
     missingReason: loads.filter(missingReason).length,
     pendingActuals: loads.filter(pendingActuals).length,
@@ -167,7 +167,7 @@ export function ScorecardsScreen({ loads, filtered, filters, onFilters }: {
     return { avg: n ? sum / n : null, pendingStops };
   }, [filtered]);
 
-  const ghostInView = useMemo(() => filtered.filter(isGhostShutdown).length, [filtered]);
+  const ghostInView = useMemo(() => filtered.filter((l) => isGhostShutdown(l)).length, [filtered]);
   const needsCfInView = useMemo(
     () => filtered.filter((l) => needsCfCoding(l, customersById)).length,
     [filtered, customersById],

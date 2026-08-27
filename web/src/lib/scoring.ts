@@ -166,16 +166,22 @@ export function gapPoints(rate: number | null, target: number): number | null {
 }
 
 /**
- * USPS Ghost Shutdown: a USPS load late on delivery and not yet Delivered/Cancelled.
- * Protocol: hourly customer updates until delivered — the UI surfaces the queue.
+ * USPS Ghost Shutdown: a USPS load that is late on delivery — a late arrival keyed,
+ * OR still undelivered past its final delivery appointment — and not yet
+ * Delivered/Cancelled. Protocol: hourly customer updates until delivered; the UI
+ * surfaces the queue.
  */
-export function isGhostShutdown(load: Load): boolean {
-  return (
-    load.customerId === GHOST_SHUTDOWN_CUSTOMER &&
-    (load.otd?.status ?? "PENDING") === "LATE" &&
-    load.status !== "Delivered" &&
-    load.status !== "Cancelled"
-  );
+export function isGhostShutdown(load: Load, nowIso?: string): boolean {
+  if (load.customerId !== GHOST_SHUTDOWN_CUSTOMER) return false;
+  if (load.status === "Delivered" || load.status === "Cancelled") return false;
+  if ((load.otd?.status ?? "PENDING") === "LATE") return true;
+  // Still rolling past the appointment: overdue counts even before an actual is keyed.
+  const appt = load.finalDeliveryAppt ?? null;
+  const now = nowIso ?? new Date().toISOString();
+  if (!appt || appt >= now) return false;
+  const finals = load.stops.filter((s) => s.type === "DELIVERY");
+  const arrived = finals.length ? finals[finals.length - 1].actualArrival : null;
+  return !arrived;
 }
 
 /* ------------------------------------------------------------------ */
