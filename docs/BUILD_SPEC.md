@@ -26,13 +26,15 @@ Everything else in the app exists to get those two numbers entered fast and keep
 |---|---|---|
 | Backend | Firebase (Firestore + Auth + Functions + Hosting + Storage) | Stated requirement |
 | Existing Postgres/Render app | Retired after cutover; new build is fresh | See §3 |
-| OTP graded on | **Arrival at shipper** vs pickup appointment | Standard; does not penalize the driver for the shipper's dock dwell |
+| **Stops** | **Multi-stop supported.** Normal load is one pickup + one delivery; the model does not assume it | Confirmed |
+| **Appointment windows** | **Straight appointment times in normal operation.** `apptEnd` exists on every stop, stays empty, and is enterable when a window shows up | Confirmed |
+| **Identifiers** | **Load Number** and **Reference Number** are separate adjacent columns; **LS Number** is per stop | Confirmed |
+| OTP graded on | **Arrival at the shipper** vs pickup appointment | Standard; does not penalize the driver for the shipper's dock dwell |
 | Departure times | Still captured, drive the dwell metric | Needed for detention conversations |
 | Grace window | Per customer, configurable, **default 15 min** | USPS SLAs differ from a manufacturer's |
 | Blank actuals | Count as **PENDING**, excluded from the percentage | Current sheet counts them as misses |
 | Tender autofill | Drag-and-drop **PDF** | Stated requirement |
 | Service Type column | Dropped | Stated requirement |
-| LS Number (Load Stop #) | New manual field, first-class | Stated requirement |
 
 ---
 
@@ -44,90 +46,119 @@ names and street addresses, pieces, weight, commodity, billing distance. There i
 customer column in the old schema and no truck/driver column in the new sheet, so a
 merge today means hand-reconciling historical rows that nobody can reconcile reliably.
 
-The build is therefore a fresh Firestore app, **but the `loads` document carries the
-asset fields (`truckNumber`, `primaryDriver`, `secondaryDriver`, `runType`, `tripNumber`)
-from day one as optional**. That turns the eventual unification into a data migration
-instead of a rewrite. Keep Render running read-only until the new app is trusted, then
-retire it.
+The build is therefore a fresh Firestore app, **but the load document carries the asset
+fields (`truckNumber`, `primaryDriver`, `secondaryDriver`, `runType`, `tripNumber`) from
+day one as optional**. That turns the eventual unification into a data migration instead
+of a rewrite. Keep Render running read-only until the new app is trusted, then retire it.
+
+Note that the old `del1/del2` columns were the previous attempt at multi-stop. This model
+replaces them with a proper stops array, which is the other reason not to inherit that schema.
 
 ---
 
-## 4. Field map — sheet column to app field
+## 4. Data model
+
+A **load** holds the commercial and freight facts. A **stop** holds an appointment and what
+actually happened there. Every load has at least two stops.
+
+### 4.1 Load
 
 `Filled by` legend: **T** = tender autofill, **M** = manual entry by ops, **C** = computed server-side.
 
 | Sheet column | App field | Type | Filled by |
 |---|---|---|---|
-| Order Number | `orderNumber` | string | T |
-| *(new)* | `lsNumber` — Load Stop # | string | M |
-| Equipment Type | `equipmentType` | enum | T |
+| Order Number | `loadNumber` | string — **the load number** | T |
+| *(new)* | `referenceNumber` | string — reference / pickup number, sits next to load number | T/M |
 | Customer Name | `customerId` | enum: aeronet / source-one / usps / milwaukee-tool | T/M |
-| Origin - City | `origin.city` | string | T |
-| Origin - State | `origin.state` | string(2) | T |
-| Origin - Zip | `origin.zip` | string — **keep as string, leading zeros** | T |
-| Shipper Location Name | `shipper.name` | string | T |
-| Shipper Street Address | `shipper.address` | string | T |
-| Pickup Time | `pickupAppt` | timestamp | T |
-| *(new, optional)* | `pickupApptEnd` | timestamp — window close | T |
-| Shipper Actual Arrival Time | `pickupActualArrival` | timestamp | **M — grades OTP** |
-| Shipper Actual Departure Time | `pickupActualDeparture` | timestamp | M |
-| Destination - City | `destination.city` | string | T |
-| Destination - State | `destination.state` | string(2) | T |
-| Destination - Zip | `destination.zip` | string | T |
-| Consignee Location Name | `consignee.name` | string | T |
-| Consignee Street Address | `consignee.address` | string | T |
-| Delivery Time | `deliveryAppt` | timestamp | T |
-| *(new, optional)* | `deliveryApptEnd` | timestamp — window close | T |
-| Destination Actual Arrival Time | `deliveryActualArrival` | timestamp | **M — grades OTD** |
-| Destination Actual Departure Time | `deliveryActualDeparture` | timestamp | M |
+| Equipment Type | `equipmentType` | enum | T |
 | Order Status | `status` | enum: Tendered / Dispatched / At Shipper / In Transit / At Consignee / Delivered / Cancelled | M |
 | Cases/Piece Count | `pieces` | integer | T |
 | Weight | `weightLbs` | number — parse `"8250.000lbs"` to `8250` | T |
 | Billing Distance | `billingMiles` | number | T |
 | Commodity | `commodity` | string | T |
 | Service Type | *dropped* | — | — |
-| On Time Pickup | `otp.status` | computed | C |
-| On Time Delivery | `otd.status` | computed | C |
+| — | `stops[]` | array of Stop, min length 2 | — |
+| — | `otp`, `otd` | computed blocks, §5 | C |
+| — | `firstPickupAppt`, `finalDeliveryAppt` | timestamps, denormalized for sorting and querying | C |
+| — | `stopOnTimePct` | number — every graded stop, not just the bookends | C |
+| — | `transitMin` | number | C |
+| — | `truckNumber`, `primaryDriver`, `secondaryDriver`, `runType`, `tripNumber` | optional, for the eventual asset-side merge | M |
+| — | `createdBy`, `updatedBy`, `batchId`, `tenderId` | provenance | C |
 
-### Computed block (server-side only — never client-writable)
+### 4.2 Stop
 
-```
-otp: { status, varianceMin, deadline, reasonCode, notes }
-otd: { status, varianceMin, deadline, reasonCode, notes }
-dwell: { shipperMin, consigneeMin }
-transitMin
-```
+| Sheet column | App field | Type | Filled by |
+|---|---|---|---|
+| *(new)* | `lsNumber` | string — **load stop number, one per stop** | M |
+| — | `seq` | integer, 1-based, defines stop order | T/M |
+| — | `type` | `PICKUP` \| `DELIVERY` | T/M |
+| Shipper / Consignee Location Name | `locationName` | string | T |
+| Shipper / Consignee Street Address | `address` | string | T |
+| Origin / Destination - City | `city` | string | T |
+| Origin / Destination - State | `state` | string(2) | T |
+| Origin / Destination - Zip | `zip` | string — **keep as string, leading zeros** | T |
+| Pickup Time / Delivery Time | `appt` | timestamp | T |
+| *(new, normally empty)* | `apptEnd` | timestamp — window close, enterable when a customer gives one | T/M |
+| Shipper / Destination Actual Arrival Time | `actualArrival` | timestamp — **grades this stop** | M |
+| Shipper / Destination Actual Departure Time | `actualDeparture` | timestamp — drives dwell | M |
+| — | `onTime` | `{ status, varianceMin, deadline }` | C |
+| — | `dwellMin` | number | C |
+| — | `reasonCode`, `notes` | miss attribution | M |
 
 `reasonCode` enum: `SHIPPER_DELAY`, `CONSIGNEE_DELAY`, `TRAFFIC_WEATHER`, `MECHANICAL`,
 `DRIVER_LATE`, `DISPATCH_PLANNING`, `CUSTOMER_RESCHEDULE`, `APPT_ERROR`,
 `PRIOR_STOP_DETENTION`, `OTHER`.
 
+### 4.3 Identifier rules
+
+- **`loadNumber`** is the business identifier and the dedupe key. Imports and re-imports
+  match on `(customerId, loadNumber)` — safe whether or not load numbers are unique across
+  customers. A second row with the same pair updates rather than duplicates; a same
+  `loadNumber` arriving under a *different* customer is flagged for review, never merged.
+- **`referenceNumber`** is the customer's number (reference / pickup number). Not unique,
+  not a key, but fully searchable and displayed in the column immediately right of load number.
+- **`lsNumber`** lives on the stop, because that is what a load stop number identifies. On a
+  standard two-stop load that is two LS fields; on a five-stop run, five.
+
 ---
 
 ## 5. Scoring rules
 
+### 5.1 Per stop
+
 ```
-graceP   = customer.graceMinutes.pickup     (default 15)
-graceD   = customer.graceMinutes.delivery   (default 15)
+grace     = customer.graceMinutes[stop.type]     (default 15, pickup and delivery separate)
+deadline  = (stop.apptEnd ?? stop.appt) + grace
 
-deadlineP = (pickupApptEnd   ?? pickupAppt)   + graceP
-deadlineD = (deliveryApptEnd ?? deliveryAppt) + graceD
-
-otp.status =
-  PENDING   if pickupAppt or pickupActualArrival is missing
-  EARLY     if pickupActualArrival < pickupAppt - customer.earlyToleranceHours
-  ON_TIME   if pickupActualArrival <= deadlineP
+stop.onTime.status =
+  PENDING   if stop.appt or stop.actualArrival is missing
+  EARLY     if stop.actualArrival < stop.appt - customer.earlyToleranceHours
+  ON_TIME   if stop.actualArrival <= deadline
   LATE      otherwise
 
-otd.status = same shape, using deliveryAppt / deliveryActualArrival / deadlineD
-
-varianceMin = actualArrival - appt, signed (negative = early)
-dwell.shipperMin   = pickupActualDeparture   - pickupActualArrival
-dwell.consigneeMin = deliveryActualDeparture - deliveryActualArrival
-transitMin         = deliveryActualArrival   - pickupActualDeparture
+stop.onTime.varianceMin = actualArrival - appt, signed (negative = early)
+stop.dwellMin           = actualDeparture - actualArrival
 ```
 
-**Percentages:**
+`apptEnd` is normally empty, so `deadline` is normally just `appt + grace`. When a customer
+does give a window, entering the close time is the only change needed — no different code path.
+
+### 5.2 Per load
+
+```
+otp        = first  stop where type == PICKUP    (by seq)
+otd        = final  stop where type == DELIVERY  (by seq)
+transitMin = otd.actualArrival - otp.actualDeparture
+
+stopOnTimePct = count(stops ON_TIME) / count(stops ON_TIME + LATE + EARLY-if-counted)
+```
+
+**Why `stopOnTimePct` exists.** On a multi-stop run a load can hit its first pickup and its
+final delivery while missing two stops in the middle, and OTP/OTD alone would score it clean.
+The scorecard shows OTP, OTD, and All-Stop side by side. OTP and OTD stay the headline
+numbers because that is what the customer measures.
+
+### 5.3 Percentages
 
 ```
 OTP% = count(ON_TIME) / count(ON_TIME + LATE + EARLY-if-counted)
@@ -150,19 +181,32 @@ All four customers live on **one page**. Filtering is a chip row, not a page cha
 
 1. **Loads** (default) — full-width table, sticky header, horizontal scroll inside its own
    container. Filter chips: All / AeroNet / Source One / USPS / Milwaukee Tool. Plus date
-   range, status, OTP/OTD outcome, and a search box matching order # / LS # / city / consignee.
-   Inline edit on the four actual-time fields — that is the ops team's daily job and must be
-   two clicks, not a modal round trip. Row expands for full detail. Column show/hide, saved views.
-2. **KPI header** — Loads, OTP%, OTD%, Pending, Avg minutes late, Worst lane. Recomputes with
-   the active filter. Per-customer scorecard cards below.
-3. **Add Load** — slide-over drawer, every field, validation.
+   range, status, OTP/OTD outcome, and a search box matching load # / reference # / LS # /
+   city / consignee.
+   - **Load view** (default): one row per load. Load Number and Reference Number are adjacent
+     columns. Shows first pickup and final delivery inline, with a stop count badge
+     (`2 stops`, `5 stops`); the row expands to the full stop list.
+   - **Stop view** (toggle): one row per stop, which is how ops actually keys actuals — LS
+     number, appointment, arrival, departure, on-time result, reason code. This is the daily
+     data-entry surface and it must be fast.
+   - Inline edit on `actualArrival` / `actualDeparture` in both views — two clicks, not a
+     modal round trip. Tab between time fields, Enter saves, Esc cancels.
+   - Column show/hide, saved views.
+2. **KPI header** — Loads, OTP%, OTD%, All-Stop%, Pending, Avg minutes late, Worst lane.
+   Recomputes with the active filter. Per-customer scorecard cards below.
+3. **Add Load** — slide-over drawer. Opens with one pickup and one delivery stop;
+   **Add stop** appends more, stops reorder by drag, `seq` renumbers automatically.
 4. **Tender drop zone** — drag a PDF anywhere on the page; parse; land in a **review panel**
    with every autofilled field badged until confirmed; save creates the load and links the PDF.
+   The parser returns the full stop list, so a multi-stop tender arrives as a multi-stop load.
 5. **Excel/CSV import** — port the existing column-mapper UX from `public/index.html`
-   (it works well), remapped to this schema. Batch ID + undo.
+   (it works well), remapped to this schema. A flat sheet row becomes a load with two stops.
+   Batch ID + undo.
 6. **Customer settings** (admin only) — grace windows, early tolerance, early-counts-as-miss,
    name aliases used to match tender text to a customer.
-7. **Reports** — CSV export of the filtered view; weekly and monthly rollup per customer.
+7. **Reports** — CSV export of the filtered view, in two shapes: *sheet-compatible*
+   (one row per load, first pickup + final delivery, matching the current spreadsheet) and
+   *flat* (one row per stop). Weekly and monthly rollup per customer.
 8. **Audit trail** — who set each actual time and when. These numbers go to customers;
    they need provenance.
 
@@ -176,31 +220,38 @@ All four customers live on **one page**. Filtering is a chip row, not a page cha
 
 | Collection | Contents |
 |---|---|
-| `loads/{loadId}` | Everything in §4 + `customerId`, computed block, `createdBy`, `updatedBy`, `batchId`, optional asset fields |
+| `loads/{loadId}` | §4.1, with `stops[]` as an embedded array |
 | `customers/{customerId}` | `name`, `aliases[]`, `graceMinutes{pickup,delivery}`, `earlyToleranceHours`, `earlyCountsAsMiss`, `active` |
 | `users/{uid}` | `role`, `displayName`, `email` |
 | `tenders/{tenderId}` | `storagePath`, `status`, `parsedFields`, `confidence`, `loadId`, `uploadedBy` |
 | `importBatches/{batchId}` | `rowCount`, `createdAt`, `rolledBackAt` |
-| `auditLog/{entryId}` | `loadId`, `field`, `before`, `after`, `uid`, `at` |
+| `auditLog/{entryId}` | `loadId`, `stopSeq`, `field`, `before`, `after`, `uid`, `at` |
 | `rollups/{customerId}_{period}` | Precomputed weekly/monthly aggregates |
 
-**Composite indexes:** `(customerId, pickupAppt desc)`, `(customerId, otp.status, pickupAppt)`,
-`(status, pickupAppt desc)`.
+**Stops are an embedded array, not a subcollection** — a load is always read and written as a
+unit, and even a twenty-stop load is nowhere near the 1MB document limit. The cost is that you
+cannot query across stops directly, which is why `otp`, `otd`, `firstPickupAppt`,
+`finalDeliveryAppt`, and `stopOnTimePct` are denormalized onto the load document: those are
+what the dashboard filters and sorts on. Stop view filters client-side within the loaded page.
+
+**Composite indexes:** `(customerId, firstPickupAppt desc)`,
+`(customerId, otp.status, firstPickupAppt)`, `(status, firstPickupAppt desc)`,
+`(customerId, loadNumber)`.
 
 ### Auth and rules
 
 Google sign-in + email/password. Roles via custom claims: `admin` / `ops` / `viewer`.
 No unauthenticated read or write, anywhere. `ops` writes loads; only `admin` writes
-`customers`; `auditLog` and the computed block are function-write-only — a client that
+`customers`; `auditLog` and every computed field are function-write-only — a client that
 can type its own OTP result can type its way to 100%.
 
 ### Cloud Functions (Node 20, TypeScript, v2)
 
 | Function | Trigger | Job |
 |---|---|---|
-| `onLoadWrite` | Firestore write on `loads/{id}` | Recompute `otp`, `otd`, `dwell`, `transitMin` |
-| `writeAudit` | Firestore write on `loads/{id}` | Diff and append to `auditLog` |
-| `parseTender` | Storage finalize on `tenders/**` | PDF to structured fields (§8) |
+| `onLoadWrite` | Firestore write on `loads/{id}` | Grade every stop, then roll up `otp`, `otd`, `stopOnTimePct`, `transitMin`, `firstPickupAppt`, `finalDeliveryAppt` |
+| `writeAudit` | Firestore write on `loads/{id}` | Diff per stop and append to `auditLog` |
+| `parseTender` | Storage finalize on `tenders/**` | PDF to structured load + stops (§8) |
 | `rollupDaily` | Scheduled | Per-customer aggregates into `rollups` |
 
 Cloud Functions and Secret Manager require the **Blaze** plan.
@@ -228,6 +279,11 @@ const res = await client.messages.create({
 
 Rules:
 
+- The schema's `stops` is an **array**, ordered as printed on the tender. A tender with four
+  stops produces four stops. Do not collapse to origin/destination.
+- Load number and reference number are **separate schema fields**. Tenders label these
+  inconsistently (Load #, Order #, Pro #, PU #, Ref #, BOL #) — the extraction prompt lists
+  the aliases per customer and requires the model to say which label it read for each.
 - API key from **Secret Manager** (`defineSecret("ANTHROPIC_API_KEY")`). Never in the client bundle.
 - The schema requires a `confidence` (`high`/`low`) and a verbatim `sourceText` per extracted
   field, so the review panel can show what the model read.
@@ -240,30 +296,23 @@ Rules:
 
 ## 9. Open questions
 
-Three of these change the data model, so they are worth answering before the build starts.
+**Answered:**
 
-**Schema-affecting:**
+- **Multi-stop** — yes, supported; normal load is one pickup + one delivery.
+- **Appointment windows** — none in normal operation; `apptEnd` present and enterable.
+- **Identifiers** — load number and reference number as separate adjacent columns;
+  LS number per stop.
 
-1. **Multi-stop.** The sheet is one pickup, one delivery — but the old dashboard has DEL1/DEL2.
-   Do any of these four customers run multi-stop? If yes the model needs a `stops[]` array,
-   and that is much cheaper to decide now than to migrate later.
-2. **Appointment windows.** Single appointment time, or start–end windows / FCFS? Does USPS
-   give a window?
-3. **Unique key.** Is Order Number unique across all customers, or only within a customer?
-   This is the dedupe key for imports and re-imports.
+**Still open — assume and flag, do not stall:**
 
-**Behavior:**
-
-4. **Timezones.** Are appointment times local to the stop, or all in Central? Proposed default:
+1. **Timezones.** Are appointment times local to the stop, or all in Central? Proposed default:
    store the instant, derive the stop's zone from the ZIP, display stop-local with a UTC toggle.
-5. **Early arrivals.** Does arriving 4 hours early count against you at any of the four?
-6. **USPS shape.** Is USPS always the consignee, always the shipper, or both ends?
-7. **Edit lock.** Who can change an actual time after a load is marked Delivered? Lock after N days?
-8. **TMS actuals.** Your sample file has the actual columns populated. Can the TMS export them,
+2. **Early arrivals.** Does arriving 4 hours early count against you at any of the four?
+   Default: no.
+3. **USPS shape.** Is USPS always the consignee, always the shipper, or both ends?
+4. **Edit lock.** Who can change an actual time after a load is marked Delivered? Lock after N days?
+5. **TMS actuals.** Your sample file has the actual columns populated. Can the TMS export them,
    or were those typed? If the TMS has them, we import and ops only fills the gaps.
-
-**Ops:**
-
-9. Firebase project ID, and is Blaze billing enabled?
-10. Roughly how many loads per week across the four customers? Decides whether the dashboard can
-    aggregate client-side or needs the scheduled rollups from day one.
+6. **Firebase project ID**, and is Blaze billing enabled?
+7. **Volume.** Roughly how many loads per week across the four customers? Decides whether the
+   dashboard can aggregate client-side or needs the scheduled rollups from day one.
