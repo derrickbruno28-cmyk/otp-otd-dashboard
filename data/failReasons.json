@@ -1,0 +1,274 @@
+[
+  {
+    "id": "driver-made-multiple-stops",
+    "label": "Driver \u2013 Made Multiple Stops",
+    "category": "DRIVER",
+    "appliesTo": "OTD",
+    "active": true,
+    "sortOrder": 1
+  },
+  {
+    "id": "driver-not-utilizing-drive-time",
+    "label": "Driver - Not Utilizing Drive Time",
+    "category": "DRIVER",
+    "appliesTo": "OTD",
+    "active": true,
+    "sortOrder": 2
+  },
+  {
+    "id": "driver-extended-fuel-stop-delay",
+    "label": "Driver \u2013 Extended Fuel Stop Delay",
+    "category": "DRIVER",
+    "appliesTo": "OTD",
+    "active": true,
+    "sortOrder": 3
+  },
+  {
+    "id": "driver-late-pickup-cascaded-to-delivery",
+    "label": "Driver - Late Pickup Cascaded to Delivery",
+    "category": "DRIVER",
+    "appliesTo": "OTD",
+    "active": true,
+    "sortOrder": 4
+  },
+  {
+    "id": "driver-late-yard-arrival",
+    "label": "Driver \u2013 Late Yard Arrival",
+    "category": "DRIVER",
+    "appliesTo": "OTP",
+    "active": true,
+    "sortOrder": 5
+  },
+  {
+    "id": "driver-hos-violation-out-of-hours",
+    "label": "Driver \u2013 HOS Violation / Out of Hours",
+    "category": "DRIVER",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 6
+  },
+  {
+    "id": "driver-unreachable-phone-off",
+    "label": "Driver \u2013 Unreachable / Phone Off",
+    "category": "DRIVER",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 7
+  },
+  {
+    "id": "driver-call-out-due-to-family-emergency",
+    "label": "Driver - Call Out Due to Family Emergency",
+    "category": "DRIVER",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 8
+  },
+  {
+    "id": "driver-failed-to-utilize-dh-properly-to-make-otp",
+    "label": "Driver - Failed to Utilize DH Properly to Make OTP",
+    "category": "DRIVER",
+    "appliesTo": "OTP",
+    "active": true,
+    "sortOrder": 9
+  },
+  {
+    "id": "driver-incorrect-route",
+    "label": "Driver - Incorrect Route",
+    "category": "DRIVER",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 10
+  },
+  {
+    "id": "driver-accident-incident-en-route",
+    "label": "Driver \u2013 Accident / Incident En Route",
+    "category": "DRIVER",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 11
+  },
+  {
+    "id": "driver-shuttle-delay",
+    "label": "Driver - Shuttle Delay",
+    "category": "DRIVER",
+    "appliesTo": "OTD",
+    "active": true,
+    "sortOrder": 12
+  },
+  {
+    "id": "shipper-freight-not-ready",
+    "label": "Shipper \u2013 Freight Not Ready",
+    "category": "SHIPPER",
+    "appliesTo": "OTP",
+    "active": true,
+    "sortOrder": 13
+  },
+  {
+    "id": "shipper-loading-error",
+    "label": "Shipper \u2013 Loading Error",
+    "category": "SHIPPER",
+    "appliesTo": "OTP",
+    "active": true,
+    "sortOrder": 14
+  },
+  {
+    "id": "shipper-late-departure-at-shipper-no-late-slip-given",
+    "label": "Shipper \u2013 Late Departure at Shipper - No Late Slip Given",
+    "category": "SHIPPER",
+    "appliesTo": "OTP",
+    "active": true,
+    "sortOrder": 15
+  },
+  {
+    "id": "shipper-detention-exceeding-appointment-window",
+    "label": "Shipper \u2013 Detention Exceeding Appointment Window",
+    "category": "SHIPPER",
+    "appliesTo": "OTP",
+    "active": true,
+    "sortOrder": 16
+  },
+  {
+    "id": "shipper-held-at-shipper-cascaded-to-late-delivery",
+    "label": "Shipper - Held at Shipper / Cascaded to Late Delivery",
+    "category": "SHIPPER",
+    "appliesTo": "OTD",
+    "active": true,
+    "sortOrder": 17
+  },
+  {
+    "id": "dispatch-late-load-assignment",
+    "label": "Dispatch \u2013 Late Load Assignment",
+    "category": "DISPATCH",
+    "appliesTo": "OTP",
+    "active": true,
+    "sortOrder": 18
+  },
+  {
+    "id": "dispatch-late-roll-out-from-yard",
+    "label": "Dispatch \u2013 Late Roll Out from Yard",
+    "category": "DISPATCH",
+    "appliesTo": "OTP",
+    "active": true,
+    "sortOrder": 19
+  },
+  {
+    "id": "dispatch-recovery",
+    "label": "Dispatch - Recovery",
+    "category": "DISPATCH",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 20
+  },
+  {
+    "id": "brokerage-approved-to-be-late-due-to-previous-load-delivery",
+    "label": "Brokerage \u2013 Approved to be Late Due to Previous Load Delivery",
+    "category": "BROKERAGE",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 21
+  },
+  {
+    "id": "brokerage-load-recovery",
+    "label": "Brokerage - Load Recovery",
+    "category": "BROKERAGE",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 22
+  },
+  {
+    "id": "brokerage-late-tender-from-broker",
+    "label": "Brokerage \u2013 Late Tender from Broker",
+    "category": "BROKERAGE",
+    "appliesTo": "OTP",
+    "active": true,
+    "sortOrder": 23
+  },
+  {
+    "id": "mechanical-tire-failure-en-route",
+    "label": "Mechanical \u2013 Tire Failure En Route",
+    "category": "MECHANICAL",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 24
+  },
+  {
+    "id": "mechanical-trailer-issues",
+    "label": "Mechanical - Trailer Issues",
+    "category": "MECHANICAL",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 25
+  },
+  {
+    "id": "mechanical-air-system-failure-low-air-pressure",
+    "label": "Mechanical \u2013 Air System Failure / Low Air Pressure",
+    "category": "MECHANICAL",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 26
+  },
+  {
+    "id": "mechanical-repairs-en-route",
+    "label": "Mechanical \u2013 Repairs En Route",
+    "category": "MECHANICAL",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 27
+  },
+  {
+    "id": "mechanical-trailer-lights-not-working",
+    "label": "Mechanical - Trailer Lights Not Working",
+    "category": "MECHANICAL",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 28
+  },
+  {
+    "id": "mechanical-due-to-dot-regulations",
+    "label": "Mechanical - Due to DOT Regulations",
+    "category": "MECHANICAL",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 29
+  },
+  {
+    "id": "mechanical-see-notes",
+    "label": "Mechanical - See Notes",
+    "category": "MECHANICAL",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 30
+  },
+  {
+    "id": "traffic-accident-delay",
+    "label": "Traffic / Accident Delay",
+    "category": "EXTERNAL",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 31
+  },
+  {
+    "id": "weather-road-conditions",
+    "label": "Weather / Road Conditions",
+    "category": "EXTERNAL",
+    "appliesTo": "BOTH",
+    "active": true,
+    "sortOrder": 32
+  },
+  {
+    "id": "not-enough-transit-time",
+    "label": "Not Enough Transit Time",
+    "category": "PLANNING",
+    "appliesTo": "OTD",
+    "active": true,
+    "sortOrder": 33
+  },
+  {
+    "id": "compliance-dot-regulated-break",
+    "label": "Compliance - DOT Regulated Break",
+    "category": "COMPLIANCE",
+    "appliesTo": "OTD",
+    "active": true,
+    "sortOrder": 34
+  }
+]

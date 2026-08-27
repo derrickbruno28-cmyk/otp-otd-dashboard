@@ -1,0 +1,87 @@
+[
+  {
+    "id": "aeronet",
+    "name": "AeroNet",
+    "aliases": [
+      "AeroNet",
+      "Aero Net"
+    ],
+    "targets": {
+      "otp": null,
+      "otd": null
+    },
+    "graceMinutes": {
+      "pickup": 15,
+      "delivery": 15
+    },
+    "earlyToleranceHours": 2,
+    "earlyCountsAsMiss": false,
+    "cfCodingEnabled": false,
+    "active": true,
+    "sortOrder": 1
+  },
+  {
+    "id": "source-one",
+    "name": "Source One",
+    "aliases": [
+      "Source One",
+      "SourceOne"
+    ],
+    "targets": {
+      "otp": null,
+      "otd": null
+    },
+    "graceMinutes": {
+      "pickup": 15,
+      "delivery": 15
+    },
+    "earlyToleranceHours": 2,
+    "earlyCountsAsMiss": false,
+    "cfCodingEnabled": false,
+    "active": true,
+    "sortOrder": 2
+  },
+  {
+    "id": "usps",
+    "name": "USPS",
+    "aliases": [
+      "USPS",
+      "United States Postal Service",
+      "US Postal"
+    ],
+    "targets": {
+      "otp": 0.97,
+      "otd": null
+    },
+    "graceMinutes": {
+      "pickup": 15,
+      "delivery": 15
+    },
+    "earlyToleranceHours": 2,
+    "earlyCountsAsMiss": false,
+    "cfCodingEnabled": true,
+    "active": true,
+    "sortOrder": 3
+  },
+  {
+    "id": "milwaukee-tool",
+    "name": "Milwaukee Tool",
+    "aliases": [
+      "Milwaukee Tool",
+      "Milwaukee Electric Tool"
+    ],
+    "targets": {
+      "otp": null,
+      "otd": null
+    },
+    "graceMinutes": {
+      "pickup": 15,
+      "delivery": 15
+    },
+    "earlyToleranceHours": 2,
+    "earlyCountsAsMiss": false,
+    "cfCodingEnabled": false,
+    "active": true,
+    "sortOrder": 4
+  }
+]

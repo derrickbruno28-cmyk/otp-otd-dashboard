@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Identity: Google-verified, company domain only. The blocking function
+    // (functions/src/identity.ts) is the primary gate; this is defense in depth. ----
+    function signedIn() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email is string
+        && request.auth.token.email.matches('.*@ghlogisticsllc[.]com');
+    }
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function hasRole(roles) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && me().role in roles;
+    }
+    function isOps()     { return hasRole(['ops', 'manager', 'admin']); }
+    function isManager() { return hasRole(['manager', 'admin']); }
+    function isAdmin()   { return hasRole(['admin']); }
+
+    // Computed keys are function-write-only: someone who can type their own OTP
+    // result can type their way to 100%.
+    function touchesComputed() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(
+        ['otp', 'otd', 'stopOnTimePct', 'transitMin',
+         'firstPickupAppt', 'finalDeliveryAppt',
+         'weekNumber', 'weekYear', 'monthKey', 'updatedAt']);
+    }
+    function createCarriesComputed() {
+      return request.resource.data.keys().hasAny(
+        ['otp', 'otd', 'stopOnTimePct', 'transitMin',
+         'firstPickupAppt', 'finalDeliveryAppt',
+         'weekNumber', 'weekYear', 'monthKey', 'updatedAt']);
+    }
+
+    match /loads/{loadId} {
+      allow read: if signedIn();
+      allow create: if isOps()
+        && !createCarriesComputed()
+        && request.resource.data.updatedBy == request.auth.uid;
+      allow update: if isOps()
+        && !touchesComputed()
+        && request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if isManager();
+
+      // Edit history is append-only and written only by Cloud Functions.
+      // Nobody deletes or edits a revision — admin included.
+      match /revisions/{revId} {
+        allow read: if signedIn();
+        allow write: if false;
+      }
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      // A user mirrors their own Google profile but can never touch their own role.
+      allow create: if signedIn() && request.auth.uid == uid
+        && !request.resource.data.keys().hasAny(['role']);
+      allow update: if signedIn() && (
+        (request.auth.uid == uid
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']))
+        || isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /customers/{id}   { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /failReasons/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /settings/{id}    { allow read: if signedIn(); allow write: if isAdmin(); }
+
+    match /drivers/{id} {
+      allow read: if signedIn();
+      allow create: if isOps()
+        && !request.resource.data.keys().hasAny(['allTime']);
+      // Review state is a personnel action: manager+. allTime stats are function-only.
+      allow update: if signedIn()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['allTime'])
+        && (
+          isManager()
+          || (isOps() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+                ['reviewState', 'reviewedBy', 'reviewedByName', 'reviewedAt', 'reviewNotes']))
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /tenders/{id} {
+      allow read: if signedIn();
+      allow create: if isOps()
+        && request.resource.data.uploadedBy == request.auth.uid
+        && !request.resource.data.keys().hasAny(['parsed', 'sha256', 'error']);
+      // Client drives status transitions (confirm/discard, loadId link);
+      // parse results come only from the function.
+      allow update: if isOps()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+             ['parsed', 'sha256', 'error', 'uploadedBy']);
+      allow delete: if false;
+    }
+
+    match /importBatches/{id} {
+      allow read: if signedIn();
+      allow create, update: if isOps();
+      allow delete: if isAdmin();
+    }
+
+    match /driverFlags/{id} {
+      allow read: if signedIn();
+      // Flags are computed by the function; a manager confirms the step — never automatic.
+      allow create: if false;
+      allow update: if isManager()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+             ['confirmedStep', 'confirmedBy', 'confirmedByName', 'confirmedAt']);
+      allow delete: if false;
+    }
+
+    match /weeklyAudits/{id} {
+      allow read: if signedIn();
+      allow write: if false;  // generateWeeklyAudit (callable) writes via Admin SDK
+    }
+  }
+}

@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* GH Logistics tokens — docs/BRAND.md is the source of truth. Dark-first.
+   Values are space-separated RGB so Tailwind can apply alpha. */
+:root, :root[data-theme="dark"] {
+  --c-ground: 4 16 31;          /* #04101F */
+  --c-surface: 11 33 64;        /* #0B2140 */
+  --c-surface-2: 17 48 88;      /* #113058 */
+  --c-ink: 234 240 248;         /* #EAF0F8 */
+  --c-ink-2: 169 189 214;       /* #A9BDD6 */
+  --c-ink-3: 114 136 166;       /* #7288A6 */
+  --c-rule: 27 53 87;           /* #1B3557 */
+  --c-rule-strong: 42 74 115;   /* #2A4A73 */
+  --c-brand: 200 162 75;        /* #C8A24B */
+  --c-brand-ink: 4 16 31;       /* #04101F */
+  --c-nav: 7 26 49;             /* #071A31 */
+  --c-ontime: 79 176 124;       /* #4FB07C */
+  --c-ontime-soft: 22 48 31;    /* #16301F */
+  --c-late: 224 112 90;         /* #E0705A */
+  --c-late-soft: 55 32 27;      /* #37201B */
+  --c-pending: 147 166 188;     /* #93A6BC — steel, never amber */
+  --c-pending-soft: 30 43 60;   /* #1E2B3C */
+  --c-cat-driver: 176 140 51;   /* #B08C33 — validated on #0B2140 */
+  --c-cat-other: 78 143 203;    /* #4E8FCB */
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --c-ground: 244 246 249;      /* #F4F6F9 */
+  --c-surface: 255 255 255;
+  --c-surface-2: 231 236 243;   /* #E7ECF3 */
+  --c-ink: 10 27 51;            /* #0A1B33 */
+  --c-ink-2: 66 84 110;         /* #42546E */
+  --c-ink-3: 107 125 150;       /* #6B7D96 */
+  --c-rule: 211 220 231;        /* #D3DCE7 */
+  --c-rule-strong: 182 196 213; /* #B6C4D5 */
+  --c-brand: 154 116 19;        /* #9A7413 */
+  --c-brand-ink: 255 255 255;
+  --c-nav: 11 33 64;            /* header stays navy in both themes */
+  --c-ontime: 31 122 69;        /* #1F7A45 */
+  --c-ontime-soft: 226 240 232;
+  --c-late: 178 58 34;          /* #B23A22 */
+  --c-late-soft: 247 229 224;
+  --c-pending: 92 107 127;      /* #5C6B7F */
+  --c-pending-soft: 230 234 240;
+  --c-cat-driver: 154 116 19;   /* validated on #FFFFFF */
+  --c-cat-other: 31 95 168;     /* #1F5FA8 */
+  color-scheme: light;
+}
+
+html, body, #root { min-height: 100%; }
+body {
+  @apply bg-ground text-ink font-sans antialiased;
+  font-size: 15px;
+}
+
+/* Figures line up or this is harder to scan than the spreadsheet it replaces. */
+.tnum { font-variant-numeric: tabular-nums; }
+table { font-variant-numeric: tabular-nums; }
+
+/* Inputs inherit the theme. */
+input, select, textarea {
+  @apply bg-surface2 text-ink border border-rule rounded px-2 py-1 text-sm;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+  outline: 2px solid rgb(var(--c-brand));
+  outline-offset: 1px;
+}
+::placeholder { color: rgb(var(--c-ink-3)); }
+
+/* Wide tables scroll inside their own container; the page never scrolls sideways. */
+.scroll-x { overflow-x: auto; }
+
+@media print {
+  :root, :root[data-theme="dark"] {
+    --c-ground: 255 255 255; --c-surface: 255 255 255; --c-surface-2: 238 241 245;
+    --c-ink: 10 27 51; --c-ink-2: 66 84 110; --c-ink-3: 107 125 150;
+    --c-rule: 211 220 231; --c-rule-strong: 182 196 213;
+    --c-brand: 154 116 19; --c-brand-ink: 255 255 255; --c-nav: 11 33 64;
+    --c-ontime: 31 122 69; --c-ontime-soft: 226 240 232;
+    --c-late: 178 58 34; --c-late-soft: 247 229 224;
+    --c-pending: 92 107 127; --c-pending-soft: 230 234 240;
+    --c-cat-driver: 154 116 19; --c-cat-other: 31 95 168;
+    color-scheme: light;
+  }
+  .no-print { display: none !important; }
+  body { font-size: 12px; }
+}

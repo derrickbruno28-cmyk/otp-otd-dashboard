@@ -1,0 +1,10 @@
+{
+  "targets": {
+    "otp": 0.97,
+    "otd": 0.95
+  },
+  "timeZone": "America/Chicago",
+  "retainTenderPdf": true,
+  "tenderRetentionDays": null,
+  "signInDomain": "ghlogisticsllc.com"
+}

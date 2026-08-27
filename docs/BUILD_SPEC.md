@@ -56,7 +56,10 @@ that fact is visible in week one rather than after someone spends a day in a spr
 | Blank actuals | PENDING — excluded from the percentage, counted separately |
 | Tender autofill | Drag-and-drop PDF; **PDF retained by default** (§9) |
 | **Brand** | GH Logistics navy + gold; dark-first. Tokens in `docs/BRAND.md` |
-| **Sign-in** | **Google only, restricted to `@ghlogisticsllc.com`**, enforced server-side |
+| **Sign-in** | **Google only, restricted to `@ghlogisticsllc.com` (confirmed)**, enforced server-side |
+| **Minimal manual input** | Imports and tender parsing carry every field they can — including actuals when the TMS exports them; ops keys only the gaps |
+| **USPS 97% OTP** | Confirmed from the customer's daily reports — seeded as USPS's pickup target |
+| **Ghost Shutdown (USPS)** | A USPS load late on delivery and not yet Delivered is flagged **GHOST SHUTDOWN** — its own queue and filter; protocol requires hourly customer updates until delivered |
 | **Operating company** | Every load is **AJG** or **GH** — a filter dimension alongside customer |
 | **Edit history** | Every save recorded and shown on the load as a timeline |
 | Service Type column | Dropped |
@@ -526,14 +529,15 @@ Extraction rules:
    zone from the ZIP, display stop-local with a toggle.
 2. **Early arrivals.** Does 4 hours early count against you anywhere? Default: no.
 3. **USPS shape.** Always consignee, always shipper, or both ends?
+3b. **USPS OTD target.** OTP is confirmed at 97%. Deliveries "carry the same scrutiny" but no
+   number was given — default: fleet 95% until a contract number says otherwise.
 4. **Edit lock.** Who can change an actual after a load is Delivered, and does it lock after
    N days? Default: `manager` and above, no time lock, every change audited.
 5. **TMS actuals.** Can the TMS export the actual columns, or were the sample ones typed?
    If it can, we import them and ops only fills gaps.
 6. **Firebase project ID**, and is Blaze billing on?
-6b. **Confirm the sign-in domain is `ghlogisticsllc.com`**, and whether any outside
-   auditor or broker ever needs read access (they would need a different mechanism —
-   the domain lock has no exceptions by design).
+6b. ~~Confirm the sign-in domain~~ **Confirmed: `ghlogisticsllc.com`.** Outside-auditor
+   access remains undecided; the domain lock has no exceptions by design.
 7. **Reviewer.** The audit names Kevin. Default: reviewer is any user with the `manager`
    role, recorded per review, rather than a hardcoded name.
 8. **Volume.** Week 33 scored 144 loads. Assume ~150/week, ~8k/year — comfortably inside
