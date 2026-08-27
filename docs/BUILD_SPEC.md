@@ -55,6 +55,10 @@ that fact is visible in week one rather than after someone spends a day in a spr
 | Grace window | Per customer, default 15 min |
 | Blank actuals | PENDING — excluded from the percentage, counted separately |
 | Tender autofill | Drag-and-drop PDF; **PDF retained by default** (§9) |
+| **Brand** | GH Logistics navy + gold; dark-first. Tokens in `docs/BRAND.md` |
+| **Sign-in** | **Google only, restricted to `@ghlogisticsllc.com`**, enforced server-side |
+| **Operating company** | Every load is **AJG** or **GH** — a filter dimension alongside customer |
+| **Edit history** | Every save recorded and shown on the load as a timeline |
 | Service Type column | Dropped |
 
 ---
@@ -71,6 +75,7 @@ that fact is visible in week one rather than after someone spends a day in a spr
 | `loadNumber` | string — the load number (sheet's "Order Number"); dedupe key | T |
 | `referenceNumber` | string — reference / pickup number, column immediately right of load number | T/M |
 | `customerId` | enum: aeronet / source-one / usps / milwaukee-tool | T/M |
+| `operatingCompany` | enum: `AJG` / `GH` — which company ran it; defaults from the truck or driver record | M |
 | `equipmentType` | enum | T |
 | `status` | Tendered / Dispatched / At Shipper / In Transit / At Consignee / Delivered / Cancelled | M |
 | `pieces`, `weightLbs`, `billingMiles`, `commodity` | freight facts; parse `"8250.000lbs"` to `8250` | T |
@@ -241,7 +246,7 @@ earned.
 ### 5.1 Loads
 
 All four customers on one page. Filtering is a chip row, not a page change. Filters:
-customer, week / date range, status, OTP and OTD outcome, reason, reason category, CF state,
+customer, **operating company (AJG / GH / both)**, week / date range, status, OTP and OTD outcome, reason, reason category, CF state,
 driver, and `Needs CF coding` / `Missing reason` / `Pending actuals` quick filters. Search
 across LS # / load # / reference # / city / consignee / driver.
 
@@ -251,8 +256,10 @@ across LS # / load # / reference # / city / consignee / driver.
 - **Stop view** — one row per stop. This is how ops keys actuals and it is the surface that
   has to be fastest. Inline edit on `actualArrival` / `actualDeparture` in both views: two
   clicks, tab between fields, Enter saves, Esc cancels.
-- **Reason entry** — clicking a LATE chip opens the reason picker inline: search the
-  taxonomy, add more than one, note per reason. A LATE load with no reason is visibly
+- **Reason entry** — clicking a LATE chip opens the reason **dropdown** inline: the seeded
+  taxonomy as selectable options grouped by category, searchable, add more than one, a note
+  per reason. Codes are always chosen from the list — never typed free-hand, or the weekly
+  ranking stops aggregating. Only the note is free text. A LATE load with no reason is visibly
   incomplete and counts into a **Missing reason** badge.
 
 ### 5.2 Scorecards
@@ -303,6 +310,101 @@ a personnel action and should never fire automatically.
 
 ---
 
+## 5A. Brand and UI
+
+The app wears GH Logistics: deep navy ground, white type, the gold slash as the accent.
+**Dark-first** — navy is the default theme, with a light theme for daytime and for printing
+the audit. Full token table, status colors, validated chart series and type rules are in
+**`docs/BRAND.md`**; build the Tailwind theme from that file rather than picking colors
+inline.
+
+Two rules worth repeating here because breaking them costs meaning, not just looks:
+
+- **Gold is reserved.** It is the brand accent and the driver-fault flag — the same
+  convention as the gold/bold LS#s in the current audit. Never use it for a chart series
+  that is not the DRIVER category, and never for a status.
+- **Pending is steel, not amber.** Amber next to gold reads as the same signal, and
+  "not keyed yet" must never be confusable with "driver flagged".
+
+The header bar stays navy in both themes so the product reads as GH at a glance. Ask for the
+logo SVG; do not trace it from the JPEG.
+
+---
+
+## 5B. Sign-in and identity
+
+**Google sign-in only, restricted to the company domain.** No email/password, no other
+providers.
+
+Assumed domain: **`ghlogisticsllc.com`** — confirm before launch; it is one constant.
+
+Enforcement is in three places, and only the last two are real:
+
+1. **`hd: "ghlogisticsllc.com"`** on the Google provider. This is a *UI hint* that
+   pre-filters the account chooser. It is client-side and trivially bypassed — it is not
+   security, and it must never be the only check.
+2. **A blocking Cloud Function** (`beforeUserCreated` / `beforeUserSignedIn`) that rejects
+   any sign-in whose `email` does not end in `@ghlogisticsllc.com` **or** whose
+   `email_verified` is false. This is the gate.
+3. **Firestore rules** that additionally require `request.auth.token.email` to match the
+   domain, so a token that somehow exists still reads nothing.
+
+New users land as `viewer` until an admin grants a role. An account that leaves the domain
+loses access at its next sign-in with no admin action required.
+
+### The signed-in user
+
+The app header shows the person's **name and photo from their Google profile**, with their
+role beside it. `users/{uid}` mirrors `displayName`, `email`, `photoURL`, `role`,
+`lastSignInAt`, refreshed on each sign-in so a name change in Workspace follows through.
+
+Their identity is not decoration — it is stamped on every actual, reason, CF code and
+escalation they record, and it is what the edit history displays.
+
+---
+
+## 5C. Edit history
+
+Every save is recorded. Not a debug log — a visible timeline on the load, because these
+numbers go to customers and into personnel files, and "who changed this delivery time, and
+when" has to be answerable in front of either audience.
+
+`loads/{loadId}/revisions/{revId}`, written by a Cloud Function on every load write:
+
+| Field | Contents |
+|---|---|
+| `at`, `uid`, `displayName`, `email` | who saved, and when |
+| `changes[]` | `{ path, before, after }` per changed field, including inside `stops[]` |
+| `summary` | human sentence, e.g. *"Delivery actual arrival 08:14 → 09:02, reason added: Driver – Made Multiple Stops"* |
+| `source` | `manual` / `tender` / `import` / `system` |
+
+Surfaced as a **History** panel on the load: newest first, each entry expandable to the
+field-level before/after, filterable by person. Revisions are append-only — `ops` cannot
+delete or edit them, and `admin` cannot either. A correction is a new revision, never a
+rewrite of an old one.
+
+`system` entries cover recomputes so a rate changing after a grace-window edit is explainable
+rather than mysterious.
+
+---
+
+## 5D. Company performance — AJG vs GH
+
+Every load carries `operatingCompany` — `AJG` or `GH` — defaulted from the truck or driver
+record and editable per load. It is a filter dimension **alongside** customer, not instead of
+it, so all of these are answerable:
+
+- GH's OTD for USPS this month
+- AJG's OTP fleet-wide, week over week
+- Which company carries the multiple-stops problem
+
+Present on the load table filter row, the scorecards, the driver pages, and the weekly audit
+header — the generated audit runs for AJG, GH, or both, crossed with customer or fleet-wide.
+Targets stay per customer; a company filter narrows the population, it does not change the
+target being measured against.
+
+---
+
 ## 6. Firebase architecture
 
 **Stack:** Vite + React + TypeScript + Tailwind on Firebase Hosting.
@@ -318,6 +420,7 @@ a personnel action and should never fire automatically.
 | `driverFlags/{year}_{week}_{driverId}` | Flag, fail count, review state, escalation history |
 | `tenders/{id}` | §9 |
 | `importBatches/{id}` | Undo |
+| `loads/{id}/revisions/{revId}` | Edit history — who saved what, field-level before/after |
 | `auditLog/{id}` | Field-level change history |
 | `users/{uid}` | `admin` / `ops` / `viewer` |
 
@@ -327,7 +430,8 @@ that you cannot query across stops, which is why `otp`, `otd`, `weekNumber`, `mo
 
 **Indexes:** `(customerId, firstPickupAppt desc)` · `(weekYear, weekNumber, customerId)` ·
 `(customerId, otp.status, firstPickupAppt)` · `(monthKey, primaryDriverId)` ·
-`(customerId, loadNumber)` · `(cf.otd, weekYear, weekNumber)`.
+`(customerId, loadNumber)` · `(cf.otd, weekYear, weekNumber)` ·
+`(operatingCompany, weekYear, weekNumber)` · `(operatingCompany, customerId, firstPickupAppt desc)`.
 
 ### Functions (Node 20, TypeScript, v2)
 
@@ -338,7 +442,8 @@ that you cannot query across stops, which is why `otp`, `otd`, `weekNumber`, `mo
 | `evaluateDriverFlags` | scheduled + on demand | 3+ fails in a week → flag; consecutive weeks → propose Step 2 |
 | `generateWeeklyAudit` | callable | Build the audit snapshot for a week ± customer |
 | `parseTender` | Storage finalize | PDF → load + ordered stops |
-| `writeAudit` | load write | Field-level diff into `auditLog` |
+| `writeRevision` | load write | Field-level diff + summary into `loads/{id}/revisions`, stamped with the signer's name |
+| `enforceDomain` | `beforeUserSignedIn` | Reject any sign-in outside `@ghlogisticsllc.com` or with an unverified email |
 
 **Every computed value is function-write-only.** Firestore rules reject client writes to
 them. Someone who can type their own OTP result can type their way to 100%.
@@ -426,6 +531,9 @@ Extraction rules:
 5. **TMS actuals.** Can the TMS export the actual columns, or were the sample ones typed?
    If it can, we import them and ops only fills gaps.
 6. **Firebase project ID**, and is Blaze billing on?
+6b. **Confirm the sign-in domain is `ghlogisticsllc.com`**, and whether any outside
+   auditor or broker ever needs read access (they would need a different mechanism —
+   the domain lock has no exceptions by design).
 7. **Reviewer.** The audit names Kevin. Default: reviewer is any user with the `manager`
    role, recorded per review, rather than a hardcoded name.
 8. **Volume.** Week 33 scored 144 loads. Assume ~150/week, ~8k/year — comfortably inside
