@@ -15,8 +15,6 @@ import type { FleetSettings, TenderParse } from "./types";
 
 const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
 
-type Json = Record<string, unknown>;
-
 /**
  * FieldExtraction — the API's structured-output compiler caps union-typed
  * parameters at 16, and nullable-everywhere blew past it. So the schema is
@@ -24,20 +22,6 @@ type Json = Record<string, unknown>;
  * and normalizeParse() converts sentinels to real nulls (and numerics to
  * numbers) before anything is stored.
  */
-const field = (value: Json): Json => ({
-  type: "object",
-  additionalProperties: false,
-  required: ["value", "confidence", "sourceText", "labelRead"],
-  properties: {
-    value,
-    confidence: { type: "string", enum: ["high", "low"] },
-    sourceText: { type: "string" },
-    labelRead: { type: "string" },
-  },
-});
-const str = field({ type: "string" });
-const num = str; // numerics arrive as printed strings; normalizeParse() parses them
-
 interface RawField { value: unknown; confidence: "high" | "low"; sourceText: string; labelRead: string; }
 function normStr(f: RawField | undefined) {
   const v = typeof f?.value === "string" ? f.value.trim() : f?.value ?? "";
@@ -81,43 +65,6 @@ function normalizeParse(raw: any): TenderParse {
   } as TenderParse;
 }
 
-const TENDER_JSON_SCHEMA: Json = {
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "loadNumber", "referenceNumber", "customerName", "equipmentType",
-    "pieces", "weightLbs", "billingMiles", "commodity", "stops",
-  ],
-  properties: {
-    loadNumber: str,
-    referenceNumber: str,
-    customerName: str,
-    equipmentType: str,
-    pieces: num,
-    weightLbs: num,
-    billingMiles: num,
-    commodity: str,
-    stops: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["type", "locationName", "address", "city", "state", "zip", "appt", "apptEnd"],
-        properties: {
-          type: field({ type: "string", enum: ["PICKUP", "DELIVERY", ""] }),
-          locationName: str,
-          address: str,
-          city: str,
-          state: str,
-          zip: str,
-          appt: str,
-          apptEnd: str,
-        },
-      },
-    },
-  },
-};
-
 const EXTRACTION_PROMPT = `You are extracting a freight tender / rate confirmation PDF into JSON for a logistics on-time dashboard.
 
 Rules:
@@ -129,7 +76,18 @@ Rules:
 - state is the 2-letter US state code as printed; zip is a string with leading zeros preserved.
 - pieces, weightLbs, billingMiles: give the printed number as a plain string (units are fine, they are stripped later); empty string when not printed.
 
-Return only JSON matching the schema.`;
+Return ONLY a JSON object — no prose, no markdown fences — with EXACTLY this shape,
+where every leaf field is {"value": string, "confidence": "high"|"low", "sourceText": string, "labelRead": string}
+(empty string for anything absent):
+
+{
+  "loadNumber": F, "referenceNumber": F, "customerName": F, "equipmentType": F,
+  "pieces": F, "weightLbs": F, "billingMiles": F, "commodity": F,
+  "stops": [
+    { "type": F(value "PICKUP" or "DELIVERY"), "locationName": F, "address": F,
+      "city": F, "state": F, "zip": F, "appt": F, "apptEnd": F }
+  ]
+}`;
 
 export const parseTender = onObjectFinalized(
   { secrets: [ANTHROPIC_API_KEY], memory: "1GiB", timeoutSeconds: 540 },
@@ -164,7 +122,6 @@ export const parseTender = onObjectFinalized(
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
         thinking: { type: "adaptive" },
-        output_config: { format: { type: "json_schema", schema: TENDER_JSON_SCHEMA } },
         messages: [{
           role: "user",
           content: [
@@ -187,7 +144,10 @@ export const parseTender = onObjectFinalized(
       let text = "";
       for (const block of res.content) if (block.type === "text") text += block.text;
       if (!text) throw new Error(`Empty model response (stop_reason: ${res.stop_reason ?? "unknown"}).`);
-      const parsed = normalizeParse(JSON.parse(text));
+      const first = text.indexOf("{");
+      const last = text.lastIndexOf("}");
+      if (first < 0 || last <= first) throw new Error("Model response contained no JSON object.");
+      const parsed = normalizeParse(JSON.parse(text.slice(first, last + 1)));
       if (!Array.isArray(parsed.stops)) throw new Error("Parsed JSON is missing the stops array.");
       await ref.set({ status: "parsed", parsed, error: null }, { merge: true });
 
