@@ -8,6 +8,7 @@ import { weekRangeLabel } from "../lib/scoring";
 import { atLeast, useAuth } from "../state/AuthContext";
 import { useData } from "../state/DataContext";
 import { useToast } from "../components/Toast";
+import { ImportDriversModal } from "../components/ImportDriversModal";
 import {
   Chip, ConfirmDialog, Drawer, EmptyState, ErrorNote, Field, Section, Spinner,
 } from "../components/ui";
@@ -194,6 +195,7 @@ export function DriversScreen({ loads }: { loads: Load[] }) {
 
   /* ---- add driver ---- */
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newCo, setNewCo] = useState<OperatingCompany>("GH");
   const [adding, setAdding] = useState(false);
@@ -265,6 +267,15 @@ export function DriversScreen({ loads }: { loads: Load[] }) {
                 className="px-3 py-1.5 rounded bg-brand text-brandInk text-sm font-semibold hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
               >
                 + Add driver
+              </button>
+            )}
+            {canOps && (
+              <button
+                type="button"
+                onClick={() => setImportOpen(true)}
+                className="px-3 py-1.5 rounded border border-ruleStrong text-ink2 text-sm hover:bg-surface2 whitespace-nowrap"
+              >
+                ⬆ Import
               </button>
             )}
           </div>
@@ -526,6 +537,7 @@ export function DriversScreen({ loads }: { loads: Load[] }) {
         onCancel={() => { if (!confirming) setConfirm(null); }}
       />
 
+      <ImportDriversModal open={importOpen} onClose={() => setImportOpen(false)} existing={drivers} />
       <Drawer open={addOpen} onClose={() => setAddOpen(false)} title="Add driver" width="min(420px,100vw)">
         <div className="space-y-3">
           <Field label="Name">

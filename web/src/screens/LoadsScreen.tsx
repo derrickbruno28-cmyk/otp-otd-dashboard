@@ -8,13 +8,13 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { atLeast, useAuth } from "../state/AuthContext";
 import { useData } from "../state/DataContext";
 import {
-  EMPTY_FILTERS, missingReason, needsCfCoding, pendingActuals, updateLoad,
+  EMPTY_FILTERS, deleteLoad, missingReason, needsCfCoding, pendingActuals, updateLoad,
 } from "../lib/loads";
 import type { LoadFilters, Signer } from "../lib/loads";
 import { isGhostShutdown } from "../lib/scoring";
 import { fmtDateTime, fmtDwell, fmtVariance } from "../lib/format";
 import { downloadCsv, loadsToSheetCsv, loadsToStopCsv } from "../lib/csv";
-import { Chip, EmptyState, GhostChip, StatusChip } from "../components/ui";
+import { Chip, ConfirmDialog, EmptyState, GhostChip, StatusChip } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { TimeInput } from "../components/TimeInput";
 import { ReasonPicker } from "../components/ReasonPicker";
@@ -33,7 +33,7 @@ const GHOST_BTN = "px-3 py-1.5 rounded border border-ruleStrong text-ink2 text-s
 const INPUT = "bg-surface border border-rule rounded px-2 py-1 text-sm text-ink";
 const TH = "px-2 py-2 text-left font-mono text-[11px] uppercase tracking-wide text-ink3 whitespace-nowrap";
 const TD = "px-2 py-2 align-top";
-const LOAD_COLS = 17;
+const LOAD_COLS = 18;
 
 const OT_STATUSES: OnTimeStatus[] = ["PENDING", "EARLY", "ON_TIME", "LATE"];
 const STATUS_RANK: Record<OnTimeStatus, number> = { PENDING: 0, EARLY: 1, ON_TIME: 2, LATE: 3 };
@@ -163,6 +163,20 @@ export function LoadsScreen({ loads, filtered, filters, onFilters }: {
   const { customers, customersById, reasons, reasonsById } = useData();
   const toast = useToast();
   const ops = atLeast(role, "ops");
+  const manager = atLeast(role, "manager");
+  const canDelete = (l: Load) => manager || (ops && !!l.batchId);
+  const [deleteAsk, setDeleteAsk] = useState<Load | null>(null);
+  const doDelete = async () => {
+    const l = deleteAsk;
+    if (!l) return;
+    setDeleteAsk(null);
+    try {
+      await deleteLoad(l.id!);
+      toast.push("ok", `Load ${l.lsNumber} deleted`);
+    } catch (e) {
+      fail("Delete")(e);
+    }
+  };
   const signer: Signer = { uid: profile?.id ?? "", name: profile?.displayName ?? "" };
 
   const [view, setView] = useState<"load" | "stop">("load");
@@ -442,6 +456,7 @@ export function LoadsScreen({ loads, filtered, filters, onFilters }: {
                 <th className={TH}>Status</th>
                 <th className={TH}><span className="sr-only">Edit</span></th>
                 <th className={TH}><span className="sr-only">History</span></th>
+                <th className={TH}><span className="sr-only">Delete</span></th>
               </tr>
             </thead>
             <tbody>
@@ -581,6 +596,19 @@ export function LoadsScreen({ loads, filtered, filters, onFilters }: {
                           onClick={() => setHistoryId(l.id!)}
                         >
                           🕘
+                        </button>
+                      </td>
+                      <td className={TD} onClick={halt}>
+                        <button
+                          type="button"
+                          title={canDelete(l) ? "Delete load"
+                            : "Deleting needs the manager role (ops can delete imported loads)"}
+                          aria-label={`Delete ${l.lsNumber}`}
+                          disabled={!canDelete(l)}
+                          className="px-1.5 py-0.5 rounded text-ink3 hover:bg-lateSoft hover:text-late disabled:opacity-30"
+                          onClick={() => setDeleteAsk(l)}
+                        >
+                          🗑
                         </button>
                       </td>
                     </tr>
@@ -756,6 +784,15 @@ export function LoadsScreen({ loads, filtered, filters, onFilters }: {
         initial={drawer.initial}
         existing={loads}
         onClose={() => setDrawer({ open: false, initial: null })}
+      />
+      <ConfirmDialog
+        open={deleteAsk !== null}
+        title="Delete load"
+        body={deleteAsk ? `Delete load ${deleteAsk.lsNumber} (${deleteAsk.loadNumber})? Its edit history is retained, but the load leaves every scorecard and audit.` : ""}
+        confirmLabel="Delete"
+        danger
+        onConfirm={doDelete}
+        onCancel={() => setDeleteAsk(null)}
       />
       {historyId !== null && (
         <HistoryPanel loadId={historyId} open onClose={() => setHistoryId(null)} />

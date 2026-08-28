@@ -22,6 +22,7 @@ import { LOAD_STATUSES, OPERATING_COMPANIES } from "../lib/types";
 import { ConfirmDialog, Drawer, EmptyState, ErrorNote, Field, Spinner } from "./ui";
 import { TimeInput } from "./TimeInput";
 import { useToast } from "./Toast";
+import { DriverPicker } from "./DriverPicker";
 
 const INPUT =
   "w-full rounded border border-ruleStrong bg-surface px-2 py-1.5 text-sm text-ink focus:outline-none focus:border-brand disabled:opacity-50";
@@ -303,6 +304,15 @@ function TenderReview({ tender, existing, onClose }: {
               {LOAD_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <DriverPicker label="Primary driver" company={draft.operatingCompany}
+            value={draft.primaryDriverId} name={draft.primaryDriverName}
+            onChange={({ id, name }) => patch({ primaryDriverId: id, primaryDriverName: name })} />
+          <DriverPicker label="Secondary driver" company={draft.operatingCompany}
+            value={draft.secondaryDriverId} name={draft.secondaryDriverName}
+            onChange={({ id, name }) => patch({ secondaryDriverId: id, secondaryDriverName: name })} />
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">

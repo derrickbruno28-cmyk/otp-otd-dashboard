@@ -6,6 +6,7 @@ import { timeZoneForState, tzAbbr } from "../lib/format";
 import type { CustomerId, Load, Stop, StopType } from "../lib/types";
 import { LOAD_STATUSES, OPERATING_COMPANIES } from "../lib/types";
 import { Drawer, ErrorNote, Field } from "./ui";
+import { DriverPicker } from "./DriverPicker";
 import { TimeInput } from "./TimeInput";
 import { useToast } from "./Toast";
 
@@ -239,24 +240,12 @@ export function LoadDrawer({ open, initial, onClose, existing }: {
         </div>
 
         <div className="grid grid-cols-2 gap-3 items-end">
-          <Field label="Primary driver">
-            <select className={INPUT} value={draft.primaryDriverId ?? ""}
-              onChange={(e) => setDriver("primary", e.target.value)}>
-              <option value="">— none —</option>
-              {drivers.map((d) => (
-                <option key={d.id} value={d.id}>{d.name} ({d.operatingCompany}){d.active ? "" : " — inactive"}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Secondary driver">
-            <select className={INPUT} value={draft.secondaryDriverId ?? ""}
-              onChange={(e) => setDriver("secondary", e.target.value)}>
-              <option value="">— none —</option>
-              {drivers.map((d) => (
-                <option key={d.id} value={d.id}>{d.name} ({d.operatingCompany}){d.active ? "" : " — inactive"}</option>
-              ))}
-            </select>
-          </Field>
+          <DriverPicker label="Primary driver" company={draft.operatingCompany}
+            value={draft.primaryDriverId} name={draft.primaryDriverName}
+            onChange={({ id, name }) => patch({ primaryDriverId: id, primaryDriverName: name })} />
+          <DriverPicker label="Secondary driver" company={draft.operatingCompany}
+            value={draft.secondaryDriverId} name={draft.secondaryDriverName}
+            onChange={({ id, name }) => patch({ secondaryDriverId: id, secondaryDriverName: name })} />
         </div>
 
         <label className="flex items-center gap-2 text-sm text-ink2">
