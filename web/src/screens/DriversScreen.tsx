@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  addDoc, collection, doc, limit, onSnapshot, orderBy, query, updateDoc, where, writeBatch,
+  addDoc, collection, deleteDoc, doc, limit, onSnapshot, orderBy, query, updateDoc, where, writeBatch,
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { fmtDateTime, fmtPct, nowIso } from "../lib/format";
@@ -196,6 +196,28 @@ export function DriversScreen({ loads }: { loads: Load[] }) {
   /* ---- add driver ---- */
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [deleteAsk, setDeleteAsk] = useState<Driver | null>(null);
+  const canAdmin = atLeast(role, "admin");
+  const toggleActive = async (d: Driver) => {
+    try {
+      await updateDoc(doc(db, "drivers", d.id!), { active: d.active === false });
+      toast.push("ok", d.active === false ? `${d.name} reactivated` : `${d.name} deactivated — kept in history, hidden from pickers`);
+    } catch (e) {
+      toast.push("error", `Update failed: ${String((e as Error)?.message ?? e)}`);
+    }
+  };
+  const doDeleteDriver = async () => {
+    const d = deleteAsk;
+    if (!d) return;
+    setDeleteAsk(null);
+    try {
+      await deleteDoc(doc(db, "drivers", d.id!));
+      if (selectedId === d.id) setSelectedId(null);
+      toast.push("ok", `Driver ${d.name} deleted`);
+    } catch (e) {
+      toast.push("error", `Delete failed: ${String((e as Error)?.message ?? e)}`);
+    }
+  };
   const [newName, setNewName] = useState("");
   const [newCo, setNewCo] = useState<DriverCompany>("GH");
   const [adding, setAdding] = useState(false);
@@ -328,6 +350,31 @@ export function DriversScreen({ loads }: { loads: Load[] }) {
         <EmptyState title="Select a driver" hint="Pick a driver on the left to see stats, fail history, and review flags." />
       ) : (
         <div className="space-y-4 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <h2 className="font-display font-semibold text-xl truncate">{selected.name}</h2>
+              <span className="font-mono text-xs text-ink3">{selected.operatingCompany}</span>
+              {selected.active === false && (
+                <span className="font-mono text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-pendingSoft text-pending">inactive</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {canOps && (
+                <button type="button" onClick={() => void toggleActive(selected)}
+                  title={selected.active === false ? "Show in pickers again" : "A driver who left: history and stats stay, name leaves the pickers"}
+                  className="px-3 py-1.5 rounded border border-ruleStrong text-ink2 text-sm hover:bg-surface2">
+                  {selected.active === false ? "Reactivate" : "Deactivate"}
+                </button>
+              )}
+              {canAdmin && (
+                <button type="button" onClick={() => setDeleteAsk(selected)}
+                  title="Remove the roster record entirely (for import mistakes) — loads keep the printed name"
+                  className="px-3 py-1.5 rounded border border-late/40 text-late text-sm hover:bg-lateSoft">
+                  🗑 Delete
+                </button>
+              )}
+            </div>
+          </div>
           {/* all-time tiles */}
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="bg-surface border border-rule rounded-lg p-3">
@@ -537,6 +584,15 @@ export function DriversScreen({ loads }: { loads: Load[] }) {
         onCancel={() => { if (!confirming) setConfirm(null); }}
       />
 
+      <ConfirmDialog
+        open={deleteAsk !== null}
+        title="Delete driver"
+        body={deleteAsk ? `Delete ${deleteAsk.name} from the roster? Their name stays on existing loads and past audits, but their record, all-time stats, and review history are removed. For a driver who left the company, Deactivate is usually the right choice instead.` : ""}
+        confirmLabel="Delete driver"
+        danger
+        onConfirm={doDeleteDriver}
+        onCancel={() => setDeleteAsk(null)}
+      />
       <ImportDriversModal open={importOpen} onClose={() => setImportOpen(false)} existing={drivers} />
       <Drawer open={addOpen} onClose={() => setAddOpen(false)} title="Add driver" width="min(420px,100vw)">
         <div className="space-y-3">
