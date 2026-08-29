@@ -13,7 +13,7 @@ import {
   Chip, ConfirmDialog, Drawer, EmptyState, ErrorNote, Field, Section, Spinner,
 } from "../components/ui";
 import type {
-  Driver, DriverFlag, Load, OperatingCompany, ReasonEntry, ReviewState,
+  Driver, DriverCompany, DriverFlag, Load, OperatingCompany, ReasonEntry, ReviewState,
 } from "../lib/types";
 import { OPERATING_COMPANIES } from "../lib/types";
 
@@ -74,7 +74,7 @@ export function DriversScreen({ loads }: { loads: Load[] }) {
   const listed = useMemo(() => drivers.filter((d) => {
     if (activeFilter === "active" && !d.active) return false;
     if (activeFilter === "inactive" && d.active) return false;
-    if (coFilter && d.operatingCompany !== coFilter) return false;
+    if (coFilter && d.operatingCompany !== coFilter && d.operatingCompany !== "BOTH") return false;
     const needle = search.trim().toLowerCase();
     if (needle && !d.name.toLowerCase().includes(needle)) return false;
     return true;
@@ -197,7 +197,7 @@ export function DriversScreen({ loads }: { loads: Load[] }) {
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newCo, setNewCo] = useState<OperatingCompany>("GH");
+  const [newCo, setNewCo] = useState<DriverCompany>("GH");
   const [adding, setAdding] = useState(false);
   async function addDriver() {
     const name = newName.trim();
@@ -553,10 +553,11 @@ export function DriversScreen({ loads }: { loads: Load[] }) {
           <Field label="Operating company">
             <select
               value={newCo}
-              onChange={(e) => setNewCo(e.target.value as OperatingCompany)}
+              onChange={(e) => setNewCo(e.target.value as DriverCompany)}
               className={inputCls}
             >
               {OPERATING_COMPANIES.map((co) => <option key={co} value={co}>{co}</option>)}
+              <option value="BOTH">Both — AJG and GH</option>
             </select>
           </Field>
           <div className="flex justify-end gap-2">

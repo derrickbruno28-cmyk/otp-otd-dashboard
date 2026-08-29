@@ -156,10 +156,15 @@ export interface DriverAllTime {
 
 export type ReviewState = "NONE" | "STEP_1_CALL" | "STEP_2_WRITE_UP";
 
+/** Which company a driver runs for. Loads stay strictly AJG|GH — the truck decides;
+ *  the roster entry may span both so one person keeps ONE record (and one all-time
+ *  OTP/OTD — two records would split their stats and dodge the 3-fail flag). */
+export type DriverCompany = OperatingCompany | "BOTH";
+
 export interface Driver {
   id?: string;
   name: string;
-  operatingCompany: OperatingCompany;
+  operatingCompany: DriverCompany;
   active: boolean;
   allTime?: DriverAllTime;
   reviewState: ReviewState;

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection, doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Drawer, Field } from "./ui";
 import { useToast } from "./Toast";
@@ -26,8 +26,8 @@ export function ImportDriversModal({ open, onClose, existing }: {
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const existingNames = useMemo(
-    () => new Set(existing.map((d) => d.name.trim().toLowerCase())),
+  const existingByName = useMemo(
+    () => new Map(existing.map((d) => [d.name.trim().toLowerCase(), d])),
     [existing],
   );
 
@@ -51,16 +51,28 @@ export function ImportDriversModal({ open, onClose, existing }: {
     .filter((r) => r.name.length > 1), [pasted, defaultCompany]);
 
   const rows = fileRows ?? pastedRows;
-  const fresh = useMemo(() => {
+  // One person = ONE record: a name already rostered under the OTHER company is
+  // upgraded to BOTH (drivers run AJG or GH trucks run to run; the load records
+  // which). Two records would split their all-time stats and the 3-fail flag.
+  const { fresh, upgrades, skipped } = useMemo(() => {
     const seen = new Set<string>();
-    return rows.filter((r) => {
+    const freshRows: Row[] = [];
+    const upgradeRows: { id: string; name: string }[] = [];
+    let dup = 0;
+    for (const r of rows) {
       const k = r.name.trim().toLowerCase();
-      if (!k || existingNames.has(k) || seen.has(k)) return false;
+      if (!k || seen.has(k)) { dup++; continue; }
       seen.add(k);
-      return true;
-    });
-  }, [rows, existingNames]);
-  const skipped = rows.length - fresh.length;
+      const ex = existingByName.get(k);
+      if (!ex) { freshRows.push(r); continue; }
+      if (ex.operatingCompany !== "BOTH" && ex.operatingCompany !== r.company) {
+        upgradeRows.push({ id: ex.id!, name: ex.name });
+      } else {
+        dup++;
+      }
+    }
+    return { fresh: freshRows, upgrades: upgradeRows, skipped: dup };
+  }, [rows, existingByName]);
 
   const onFile = async (f: File) => {
     try {
@@ -85,9 +97,10 @@ export function ImportDriversModal({ open, onClose, existing }: {
   };
 
   const commit = async () => {
-    if (!fresh.length || busy) return;
+    if ((!fresh.length && !upgrades.length) || busy) return;
     setBusy(true);
     let created = 0;
+    let upgraded = 0;
     try {
       for (const r of fresh) {
         await addDoc(collection(db, "drivers"), {
@@ -97,11 +110,18 @@ export function ImportDriversModal({ open, onClose, existing }: {
         });
         created++;
       }
-      toast.push("ok", `Imported ${created} driver${created === 1 ? "" : "s"}${skipped ? ` · ${skipped} already on the roster` : ""}`);
+      for (const u of upgrades) {
+        await updateDoc(doc(db, "drivers", u.id), { operatingCompany: "BOTH" });
+        upgraded++;
+      }
+      const bits = [`${created} added`];
+      if (upgraded) bits.push(`${upgraded} marked BOTH (already rostered under the other company)`);
+      if (skipped) bits.push(`${skipped} already on the roster`);
+      toast.push("ok", `Drivers: ${bits.join(" · ")}`);
       setPasted(""); setFileRows(null); setFileName("");
       onClose();
     } catch (e) {
-      toast.push("error", `Import stopped after ${created}: ${String((e as Error)?.message ?? e)}`);
+      toast.push("error", `Import stopped after ${created + upgraded} change${created + upgraded === 1 ? "" : "s"}: ${String((e as Error)?.message ?? e)}`);
     } finally {
       setBusy(false);
     }
@@ -153,6 +173,7 @@ export function ImportDriversModal({ open, onClose, existing }: {
           <div className="rounded border border-rule bg-surface2/50 p-3 text-sm">
             <p className="text-ink">
               <span className="tnum font-semibold">{fresh.length}</span> new driver{fresh.length === 1 ? "" : "s"} to add
+              {upgrades.length > 0 && <span className="text-brand"> · {upgrades.length} will be marked BOTH (drive for AJG and GH)</span>}
               {skipped > 0 && <span className="text-ink3"> · {skipped} skipped (already on the roster or duplicated)</span>}
             </p>
             <div className="mt-2 max-h-40 overflow-y-auto space-y-0.5">
@@ -172,9 +193,9 @@ export function ImportDriversModal({ open, onClose, existing }: {
             className="px-3 py-1.5 rounded border border-ruleStrong text-ink2 text-sm hover:bg-surface2">
             Cancel
           </button>
-          <button type="button" disabled={!fresh.length || busy} onClick={() => void commit()}
+          <button type="button" disabled={(!fresh.length && !upgrades.length) || busy} onClick={() => void commit()}
             className="px-3 py-1.5 rounded bg-brand text-brandInk text-sm font-semibold hover:opacity-90 disabled:opacity-50">
-            {busy ? "Importing…" : `Import ${fresh.length || ""}`}
+            {busy ? "Importing…" : `Apply ${fresh.length + upgrades.length || ""}`}
           </button>
         </div>
       </div>
